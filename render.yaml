@@ -3,8 +3,13 @@ services:
     name: promurcia-os
     runtime: node
     plan: free
-    buildCommand: NODE_ENV=development npm install && npm run build
-    startCommand: npm start
+  buildCommand: |
+    NODE_ENV=development npm install && \
+    npm run build && \
+    mkdir -p dist/contracts && \
+    cp contracts/*.ts dist/contracts/ && \
+    echo '{"imports":{"@contracts/*":"./contracts/*"}}' > dist/package.json
+  startCommand: cd dist && node boot.js
     envVars:
       - key: NODE_ENV
         value: production
