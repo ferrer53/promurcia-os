@@ -3,7 +3,7 @@ services:
     name: promurcia-os
     runtime: node
     plan: free
-    buildCommand: NODE_ENV=development npm install && mkdir -p node_modules/@contracts && ln -sf $(pwd)/contracts/* node_modules/@contracts/ && npm run build
+    buildCommand: NODE_ENV=development npm install && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
