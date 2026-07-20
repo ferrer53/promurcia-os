@@ -3,8 +3,8 @@ services:
     name: promurcia-os
     runtime: node
     plan: free
-    buildCommand: NODE_ENV=development npm install && npm run build && mkdir -p dist/contracts && cp contracts/*.ts dist/contracts/ && echo '{"name":"promurcia-dist","imports":{"#contracts/*.js":"./contracts/*.js"}}' > dist/package.json
-    startCommand: cd dist && node --experimental-specifier-resolution=node boot.js
+    buildCommand: NODE_ENV=development npm install && npm run build && mkdir -p dist/contracts && cp contracts/*.ts dist/contracts/
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
