@@ -163,7 +163,7 @@ function transformRow(
   // Build lead data
   if (isContact || detectedType === "contacts" || detectedType === "mixed") {
     const name = String(row.name || row.cliente || row.contacto || row.nombre || "").trim();
-    const phone = normalizePhone(row.phone || row.telefono || row.tlf || row.movil || null);
+    const phone = normalizePhone(String(row.phone || row.telefono || row.tlf || row.movil || ""));
     const email = row.email
       ? String(row.email).toLowerCase().trim()
       : null;
@@ -176,7 +176,7 @@ function transformRow(
         source: options.defaultSource || "import",
         status: options.defaultStatus || "nuevo",
         zone: row.zone || row.zona || row.barrio || row.area || row.localidad || null,
-        operationType: mapOperationType(row.operationType || row.operacion || row.tipo),
+        operationType: mapOperationType(row.operationType || row.operation || row.operacion || row.tipo),
         budgetMin: toNumber(row.budgetMin) || toNumber(row.price) || null,
         budgetMax: null,
         bedrooms: toNumber(row.bedrooms),
@@ -225,7 +225,7 @@ function transformRow(
         condition: mapCondition(row.condition || row.estado),
         energyRating: row.energyCert ? String(row.energyCert) : null,
         ownerName: row.owner ? String(row.owner) : null,
-        ownerPhone: normalizePhone(row.ownerPhone || row.telefonoPropietario || null),
+        ownerPhone: normalizePhone(String(row.ownerPhone || row.telefonoPropietario || "")),
         ownerEmail: row.ownerEmail ? String(row.ownerEmail).toLowerCase() : null,
         monthlyRent: toNumber(row.monthlyRent || row.alquilerMensual),
         notes: row.notes || row.notas || row.comentarios || null,
@@ -257,21 +257,22 @@ function mapUrgency(value: unknown): string {
 }
 
 function mapPropertyType(value: unknown): string {
-  if (!value) return "apartamento";
+  if (!value) return "piso";
   const v = String(value).toLowerCase().trim();
   if (v.includes("apartamento") || v.includes("apto") || v.includes("piso") || v.includes("flat"))
-    return "apartamento";
+    return "piso";
   if (v.includes("casa") || v.includes("chalet") || v.includes("house")) return "casa";
   if (v.includes("duplex") || v.includes("dúplex")) return "duplex";
   if (v.includes("ático") || v.includes("atico") || v.includes("penthouse")) return "atico";
+  if (v.includes("estudio") || v.includes("studio")) return "estudio";
   if (v.includes("local") || v.includes("comercial") || v.includes("shop")) return "local";
   if (v.includes("oficina") || v.includes("office")) return "oficina";
   if (v.includes("nave") || v.includes("industrial") || v.includes("warehouse")) return "nave";
   if (v.includes("terreno") || v.includes("suelo") || v.includes("plot") || v.includes("land"))
     return "terreno";
-  if (v.includes("parking") || v.includes("garaje") || v.includes("garage")) return "parking";
+  if (v.includes("parking") || v.includes("garaje") || v.includes("garage")) return "garaje";
   if (v.includes("trastero") || v.includes("storage")) return "trastero";
-  return "apartamento";
+  return "piso";
 }
 
 function mapPropertyOperation(value: unknown): string {
@@ -279,7 +280,7 @@ function mapPropertyOperation(value: unknown): string {
   const v = String(value).toLowerCase().trim();
   if (v.includes("alquiler") || v.includes("rent") || v.includes("alq")) return "alquiler";
   if (v.includes("venta") || v.includes("sale") || v.includes("sell")) return "venta";
-  if (v.includes("ambos") || v.includes("both")) return "ambos";
+  if (v.includes("ambos") || v.includes("both")) return "venta_alquiler";
   return "alquiler";
 }
 
@@ -301,13 +302,13 @@ function toNumber(value: unknown): number | null {
   return isNaN(num) ? null : num;
 }
 
-function toBoolean(value: unknown): number {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "boolean") return value ? 1 : 0;
-  if (typeof value === "number") return value > 0 ? 1 : 0;
+function toBoolean(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value > 0;
   const str = String(value).toLowerCase().trim();
-  if (["si", "sí", "yes", "true", "1", "x"].includes(str)) return 1;
-  return 0;
+  if (["si", "sí", "yes", "true", "1", "x"].includes(str)) return true;
+  return false;
 }
 
 // ── Lead Creator ────────────────────────────────────────────────────
@@ -331,7 +332,7 @@ async function createLead(data: Record<string, unknown>): Promise<number> {
       urgency: data.urgency as "alta" | "media" | "baja" | null,
       notes: data.notes ? String(data.notes) : null,
       assignedTo: data.assignedTo as number | null,
-    } as const)
+    })
     .returning();
 
   return result[0].id;
@@ -347,6 +348,7 @@ async function createProperty(data: Record<string, unknown>): Promise<number> {
       title: String(data.title || ""),
       description: data.description ? String(data.description) : null,
       type: data.type as
+        | "piso"
         | "apartamento"
         | "casa"
         | "duplex"
@@ -355,7 +357,7 @@ async function createProperty(data: Record<string, unknown>): Promise<number> {
         | "oficina"
         | "nave"
         | "terreno"
-        | "parking"
+        | "garaje"
         | "trastero",
       status: (data.status as "disponible" | "reservado" | "alquilado" | "vendido" | "inactivo") || "disponible",
       operation: (data.operation as "alquiler" | "venta" | "ambos") || "alquiler",
@@ -368,14 +370,14 @@ async function createProperty(data: Record<string, unknown>): Promise<number> {
       bathrooms: data.bathrooms as number | null,
       squareMeters: data.squareMeters as number | null,
       floor: data.floor as number | null,
-      hasElevator: data.hasElevator as number | null,
-      hasTerrace: data.hasTerrace as number | null,
-      hasParking: data.hasParking as number | null,
-      hasPool: data.hasPool as number | null,
-      hasGarden: data.hasGarden as number | null,
-      hasAirConditioning: data.hasAirConditioning as number | null,
-      hasHeating: data.hasHeating as number | null,
-      hasFurniture: data.hasFurniture as number | null,
+      hasElevator: data.hasElevator as boolean | null,
+      hasTerrace: data.hasTerrace as boolean | null,
+      hasParking: data.hasParking as boolean | null,
+      hasPool: data.hasPool as boolean | null,
+      hasGarden: data.hasGarden as boolean | null,
+      hasAirConditioning: data.hasAirConditioning as boolean | null,
+      hasHeating: data.hasHeating as boolean | null,
+      hasFurniture: data.hasFurniture as boolean | null,
       yearBuilt: data.yearBuilt as number | null,
       condition: data.condition as "nuevo" | "reforma" | "bueno" | "a_reformar" | null,
       energyRating: data.energyRating ? String(data.energyRating) : null,
@@ -384,7 +386,7 @@ async function createProperty(data: Record<string, unknown>): Promise<number> {
       ownerEmail: data.ownerEmail ? String(data.ownerEmail) : null,
       monthlyRent: data.monthlyRent as number | null,
       notes: data.notes ? String(data.notes) : null,
-    } as const)
+    })
     .returning();
 
   return result[0].id;
@@ -473,7 +475,7 @@ export async function createImportJob(
       fileSize,
       status: "pending",
       config: JSON.stringify(options),
-      startedBy: startedBy || null,
+      createdBy: startedBy || null,
     } as InsertImportJob)
     .returning();
 
@@ -503,7 +505,8 @@ export async function updateImportJobStatus(
 export async function runImportPipeline(
   fileBuffer: Buffer,
   fileType: "xlsx" | "csv" | "pdf",
-  options: ImportOptions = {}
+  options: ImportOptions = {},
+  fileName?: string
 ): Promise<ImportPipelineResult> {
   const defaults: ImportOptions = {
     skipDuplicates: true,
@@ -516,7 +519,7 @@ export async function runImportPipeline(
 
   // Step 1: Create import job
   const jobId = await createImportJob(
-    `import-${Date.now()}.${fileType}`,
+    fileName || `import-${Date.now()}.${fileType}`,
     fileType,
     fileBuffer.length,
     opts,
@@ -652,14 +655,14 @@ export async function runImportPipeline(
             // Auto-link by phone
             if (opts.autoLink && leadPhone) {
               const linkedCount = await autoLinkByPhone(leadId, leadPhone);
-              if (linkedCount > 0) {
+              if (linkedCount && linkedCount > 0) {
                 result.linked += linkedCount;
                 // Create interaction record
                 await db.insert(interactions).values({
                   type: "nota",
                   leadId,
                   content: `Importado automáticamente. Vinculado a ${linkedCount} propiedad(es) por número de teléfono coincidente.`,
-                  direction: "entrante",
+                  direction: "inbound",
                   createdAt: new Date(),
                 });
               }
@@ -701,8 +704,31 @@ export async function runImportPipeline(
               entityId: propId,
             });
 
-            // Auto-link property to leads by owner phone
-            if (opts.autoLink && ownerPhone) {
+            // If this row also created a lead, use the lead phone as owner phone and link them
+            const createdLeadId = result.details.find(
+              (d) => d.row === rowNumber && d.type === "lead" && d.action === "created"
+            )?.entityId;
+            const createdLeadPhone = createdLeadId
+              ? (transformed.leadData?.phone as string | null)
+              : null;
+
+            if (createdLeadPhone) {
+              await db
+                .update(properties)
+                .set({ ownerPhone: createdLeadPhone })
+                .where(eq(properties.id, propId));
+              const linkedCount = await autoLinkByPhone(createdLeadId as number, createdLeadPhone);
+              if (linkedCount && linkedCount > 0) {
+                result.linked += linkedCount;
+                await db.insert(interactions).values({
+                  type: "nota",
+                  leadId: createdLeadId as number,
+                  content: `Importado automáticamente. Vinculado a ${linkedCount} propiedad(es) por número de teléfono coincidente.`,
+                  direction: "inbound",
+                  createdAt: new Date(),
+                });
+              }
+            } else if (opts.autoLink && ownerPhone) {
               const linkedCount = await autoLinkPropertyToLeads(propId, ownerPhone);
               if (linkedCount > 0) {
                 result.linked += linkedCount;

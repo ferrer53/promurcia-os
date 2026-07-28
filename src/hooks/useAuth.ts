@@ -1,21 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
+import { trpc } from '@/providers/trpc';
 
 export interface AuthUser {
   id: number;
-  name: string;
-  email: string;
-  role: 'superCEO' | 'admin' | 'operaciones' | 'comercial' | 'solo_lectura' | 'agente';
-  avatar?: string;
+  name: string | null;
+  email: string | null;
+  role: 'superCEO' | 'admin' | 'operaciones' | 'comercial' | 'solo_lectura' | 'agente' | 'user';
+  avatar?: string | null;
 }
-
-export const DEMO_USERS: Record<string, { password: string; user: AuthUser }> = {
-  superceo: { password: 'promurcia2024', user: { id: 1, name: 'Nestor Fuentes', email: 'promurcia2017@gmail.com', role: 'superCEO' } },
-  admin: { password: 'admin2024', user: { id: 2, name: 'Admin Promurcia', email: 'admin@promurcia.com', role: 'admin' } },
-  operaciones: { password: 'ops2024', user: { id: 3, name: 'Operaciones', email: 'ops@promurcia.com', role: 'operaciones' } },
-  comercial: { password: 'ventas2024', user: { id: 4, name: 'Comercial', email: 'ventas@promurcia.com', role: 'comercial' } },
-  lectura: { password: 'lectura2024', user: { id: 5, name: 'Consultor', email: 'consulta@promurcia.com', role: 'solo_lectura' } },
-  agente: { password: 'agente2024', user: { id: 6, name: 'Agente', email: 'agente@promurcia.com', role: 'agente' } },
-};
 
 export const ROLE_LABELS: Record<string, string> = {
   superCEO: 'Super CEO',
@@ -24,73 +16,81 @@ export const ROLE_LABELS: Record<string, string> = {
   comercial: 'Comercial',
   solo_lectura: 'Solo Lectura',
   agente: 'Agente',
+  user: 'Usuario',
 };
 
-function generateToken(user: AuthUser): string {
-  return btoa(JSON.stringify({ ...user, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }));
-}
+const TOKEN_KEY = 'promurcia_token';
 
 function parseToken(token: string): AuthUser | null {
   try {
-    const data = JSON.parse(atob(token));
-    if (data.exp && data.exp > Date.now()) return data as AuthUser;
-    return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+    return payload as AuthUser;
   } catch { return null; }
 }
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const utils = trpc.useUtils();
+
+  const { data: meData } = trpc.auth.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
-    const token = localStorage.getItem('promurcia_token');
+    const token = localStorage.getItem(TOKEN_KEY);
     if (token) {
       const parsed = parseToken(token);
       if (parsed) setUser(parsed);
-      else localStorage.removeItem('promurcia_token');
+      else localStorage.removeItem(TOKEN_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (meData) {
+      const u = meData as unknown as AuthUser;
+      setUser(u);
+    } else if (meData === null) {
+      setUser(null);
+      localStorage.removeItem(TOKEN_KEY);
     }
     setIsLoading(false);
+  }, [meData]);
 
-    // Listen for storage changes (sync across tabs/components)
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'promurcia_token') {
-        if (e.newValue) {
-          const parsed = parseToken(e.newValue);
-          if (parsed) setUser(parsed);
-        } else {
-          setUser(null);
-        }
+  const loginMutation = trpc.auth.login.useMutation({
+    onSuccess: (data: any) => {
+      if (data.success && data.token) {
+        localStorage.setItem(TOKEN_KEY, data.token);
+        setUser(data.user as unknown as AuthUser);
+        utils.auth.me.invalidate();
       }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
+    },
+  });
 
-  const login = useCallback((username: string, password: string): boolean => {
-    const entry = DEMO_USERS[username.toLowerCase()];
-    if (entry && entry.password === password) {
-      const token = generateToken(entry.user);
-      localStorage.setItem('promurcia_token', token);
-      setUser(entry.user);
-      return true;
-    }
-    return false;
-  }, []);
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      localStorage.removeItem(TOKEN_KEY);
+      setUser(null);
+      window.location.href = '/login';
+    },
+  });
 
-  const loginAs = useCallback((role: string) => {
-    const entry = Object.entries(DEMO_USERS).find(([, v]) => v.user.role === role);
-    if (entry) {
-      const token = generateToken(entry[1].user);
-      localStorage.setItem('promurcia_token', token);
-      setUser(entry[1].user);
+  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
+    try {
+      const result = await loginMutation.mutateAsync({ username, password });
+      return result.success;
+    } catch {
+      return false;
     }
-  }, []);
+  }, [loginMutation]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('promurcia_token');
-    setUser(null);
-    window.location.reload();
-  }, []);
+    logoutMutation.mutate();
+  }, [logoutMutation]);
 
-  return { user, isAuthenticated: !!user, isLoading, login, loginAs, logout };
+  return { user, isAuthenticated: !!user, isLoading, login, logout };
 }

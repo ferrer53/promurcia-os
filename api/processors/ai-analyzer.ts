@@ -117,7 +117,7 @@ async function callOpenAI(
     throw new Error(`OpenAI API error ${response.status}: ${errorText}`);
   }
 
-  const result = await response.json();
+  const result = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = result.choices?.[0]?.message?.content;
 
   if (!content) {

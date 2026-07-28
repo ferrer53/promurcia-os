@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare, LayoutDashboard, Mic, HardDrive, Mail, Activity,
@@ -16,64 +16,64 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { trpc } from '@/providers/trpc';
 
 const NAVY = '#0a1628';
 const NAVY_LIGHT = '#111d32';
 const GOLD = '#d4a853';
 const GOLD_RGB = '212,168,83';
 
-/* ═══════════════════════════════════════════
-   ESTADO GLOBAL DEL SISTEMA
-   ═══════════════════════════════════════════ */
+function useSystemStats() {
+  const { data } = trpc.crm.reports.getDashboardStats.useQuery();
+  return data || { leads: 0, leadsToday: 0, properties: 0, operations: 0, tasks: 0, transcriptions: 0, imports: 0 };
+}
+
+type SystemStats = ReturnType<typeof useSystemStats>;
+
 const SYSTEM_STATE = {
-  drive: { connected: true, files: 315, lastSync: 'Hace 2 minutos', folders: 4, syncing: false },
-  gmail: { connected: true, unread: 12, leadsToday: 3, lastCheck: 'Hace 5 minutos', checking: false },
-  transcriptions: { total: 156, pending: 0, completed: 156, lastTranscribed: 'llamada_maria_20231015.mp3', transcribingNow: false, currentFile: '' },
-  leads: { total: 1247, newToday: 3, hot: 45, warm: 120, cold: 200, sources: { idealista: 45, fotocasa: 25, whatsapp: 15, email: 10, manual: 5 } },
-  properties: { total: 89, forSale: 45, forRent: 32, sold: 12, newThisWeek: 5 },
-  operations: { total: 34, active: 28, closed: 6, revenue: 148000, pipeline: { captacion: 8, preparacion: 12, comercializacion: 15, negociacion: 5, cierre: 3, postventa: 2 } },
-  tasks: { total: 89, pending: 23, overdue: 5, completedToday: 12 },
-  commercials: { agent1: { name: 'Agente 1', closed: 12 }, agent2: { name: 'Agente 2', closed: 8 }, agent3: { name: 'Agente 3', closed: 5 } },
+  drive: { lastSync: 'Pendiente de configurar', files: 0 },
+  gmail: { unread: 0, leadsToday: 0 },
 };
 
-/* ═══════════════════════════════════════════
-   RESPUESTAS INTELIGENTES DE CEREBRO
-   ═══════════════════════════════════════════ */
-const CEREBRO_RESPONSES: Record<string, string> = {
-  'acceso drive': '\uD83D\uDCBE S\u00ED, estoy conectado a Google Drive de promurcia2017@gmail.com. He escaneado 4 carpetas: 156 grabaciones de llamadas, 23 archivos Excel, 47 PDFs de contratos y 89 fotos de propiedades. \u00BFQuieres que procese alguna carpeta espec\u00EDfica?',
-  'drive': '\uD83D\uDCBE S\u00ED, estoy conectado a Google Drive de promurcia2017@gmail.com. He escaneado 4 carpetas: 156 grabaciones de llamadas, 23 archivos Excel, 47 PDFs de contratos y 89 fotos de propiedades. \u00BFQuieres que procese alguna carpeta espec\u00EDfica?',
-  'google drive': '\uD83D\uDCBE S\u00ED, estoy conectado a Google Drive de promurcia2017@gmail.com. He escaneado 4 carpetas: 156 grabaciones de llamadas, 23 archivos Excel, 47 PDFs de contratos y 89 fotos de propiedades. \u00BFQuieres que procese alguna carpeta espec\u00EDfica?',
-  'leads hoy': '\uD83D\uDCE2 Hoy han entrado 3 leads nuevos:\n\n1) \uD83D\uDC64 Mar\u00EDa Garc\u00EDa \u2014 Idealista \u2014 Compra \u2014 Zona Centro \u2014 Presupuesto 150.000\u20AC\n2) \uD83D\uDC64 Juan P\u00E9rez \u2014 Fotocasa \u2014 Alquiler \u2014 Vistalegre \u2014 800\u20AC/mes\n3) \uD83D\uDC64 Ana L\u00F3pez \u2014 WhatsApp \u2014 Compra \u2014 El Palmar \u2014 Presupuesto 200.000\u20AC\n\n\u00BFQuieres que los clasifique con IA?',
-  'leads': '\uD83D\uDCCA Tenemos 1.247 leads en total. De ellos:\n\n\uD83D\uDD25 45 calientes (hot)\n\u26A0\uFE0F 120 tibios (warm)\n\u2744\uFE0F 200 fr\u00EDos (cold)\n\nHoy han entrado 3 nuevos. Los \u00FAltimos 7 d\u00EDas han entrado 23 leads. Las principales fuentes son Idealista (45%) y Fotocasa (25%). \u00BFQuieres ver el detalle de alguno?',
-  'propiedades': '\uD83C\uDFE0 Tenemos 89 propiedades registradas:\n\n\u2022 45 en venta\n\u2022 32 en alquiler\n\u2022 12 vendidas\n\nLa m\u00E1s cara es un \u00E1tico en Vistalegre a 210.000\u20AC. Hay 5 propiedades nuevas esta semana. \u00BFQuieres que te muestre alguna zona espec\u00EDfica?',
-  'propiedad': '\uD83C\uDFE0 Tenemos 89 propiedades registradas:\n\n\u2022 45 en venta\n\u2022 32 en alquiler\n\u2022 12 vendidas\n\nLa m\u00E1s cara es un \u00E1tico en Vistalegre a 210.000\u20AC. Hay 5 propiedades nuevas esta semana.',
-  'transcripciones': '\uD83C\uDF99\uFE0F Tengo 156 grabaciones transcritas.\n\nLa \u00FAltima fue "llamada_maria_20231015.mp3" con sentimiento positivo (92%).\n\nAn\u00E1lisis de sentimiento:\n\u2022 89 positivas\n\u2022 45 neutras\n\u2022 22 negativas\n\nSe detectaron 28 tareas autom\u00E1ticas de las transcripciones.',
-  'transcripcion': '\uD83C\uDF99\uFE0F Tengo 156 grabaciones transcritas. La \u00FAltima fue "llamada_maria_20231015.mp3" con sentimiento positivo (92%). De las 156: 89 positivas, 45 neutras, 22 negativas. Se detectaron 28 tareas autom\u00E1ticas.',
-  'pipeline': '\uD83D\uDCC8 Pipeline de ventas actual:\n\n\uD83D\uDD39 Captaci\u00F3n: 8 operaciones\n\uD83D\uDD39 Preparaci\u00F3n: 12 operaciones\n\uD83D\uDD39 Comercializaci\u00F3n: 15 operaciones\n\uD83D\uDD39 Negociaci\u00F3n: 5 operaciones\n\uD83D\uDD39 Cierre: 3 operaciones\n\uD83D\uDD39 Postventa: 2 operaciones\n\nTotal: 34 operaciones activas. Ingresos estimados este mes: 148.000\u20AC.',
-  'ventas': '\uD83D\uDCB0 Este mes:\n\n\u2022 6 operaciones cerradas\n\u2022 148.000\u20AC en comisiones\n\nRanking comerciales:\n\uD83E\uDD47 Agente 1 \u2014 12 operaciones\n\uD83E\uDD48 Agente 2 \u2014 8 operaciones\n\uD83E\uDD49 Agente 3 \u2014 5 operaciones\n\nHay 5 operaciones a punto de cerrar en negociaci\u00F3n.',
-  'comercial': '\uD83D\uDCBC Ranking comerciales este mes:\n\n\uD83E\uDD47 Agente 1 \u2014 12 operaciones cerradas\n\uD83E\uDD48 Agente 2 \u2014 8 operaciones cerradas\n\uD83E\uDD49 Agente 3 \u2014 5 operaciones cerradas\n\nTotal: 148.000\u20AC en comisiones generadas.',
-  'tareas': '\u26A0\uFE0F Hay 89 tareas en el sistema:\n\n\u2022 23 pendientes\n\u2022 5 vencidas (\u00A1urgente!)\n\u2022 12 completadas hoy\n\nTareas vencidas:\n1) Llamar a Carlos Ruiz\n2) Enviar ficha a Mar\u00EDa G.\n3) Revisar contrato arras\n4) Programar visita s\u00E1bado\n5) Solicitar DNI pendiente',
-  'estado': '\u2705 Sistema operativo al 100%.\n\n\uD83D\uDCBE Drive: conectado (315 archivos)\n\uD83D\uDCE7 Gmail: activo (12 emails sin leer)\n\uD83C\uDF99\uFE0F Transcripciones: 156/156 completadas\n\uD83D\uDC64 Leads: 1.247 registrados\n\uD83C\uDFE0 Propiedades: 89 activas\n\uD83D\uDCC8 Operaciones: 34 en curso\n\nTodo funciona correctamente. \u00BFTe gustar\u00EDa que profundice en alg\u00FAn \u00E1rea?',
-  'hola': '\uD83D\uDC4B \u00A1Hola! Soy CEREBRO, el asistente inteligente de Promurcia.\n\nTengo acceso completo al sistema:\n\u2022 1.247 leads\n\u2022 89 propiedades\n\u2022 156 transcripciones\n\u2022 315 archivos en Drive\n\u00BFEn qu\u00E9 puedo ayudarte hoy?',
-  'hola cerebro': '\uD83D\uDC4B \u00A1Hola! Soy CEREBRO, el asistente inteligente de Promurcia.\n\nTengo acceso completo al sistema:\n\u2022 1.247 leads\n\u2022 89 propiedades\n\u2022 156 transcripciones\n\u2022 315 archivos en Drive\n\u00BFEn qu\u00E9 puedo ayudarte hoy?',
-  'hola cerebro': '\uD83D\uDC4B \u00A1Hola! Soy CEREBRO, el asistente inteligente de Promurcia.\n\nTengo acceso completo al sistema:\n\u2022 1.247 leads\n\u2022 89 propiedades\n\u2022 156 transcripciones\n\u2022 315 archivos en Drive\n\u00BFEn qu\u00E9 puedo ayudarte hoy?',
-  'gmail': '\uD83D\uDCE7 Gmail est\u00E1 activo para promurcia2017@gmail.com. Hay 12 emails sin leer. Hoy se detectaron 3 leads nuevos desde el email. \u00DAltima revisi\u00F3n: hace 5 minutos. Reviso cada 5 minutos autom\u00E1ticamente.',
-  'email': '\uD83D\uDCE7 Gmail est\u00E1 activo para promurcia2017@gmail.com. Hay 12 emails sin leer. Hoy se detectaron 3 leads nuevos desde el email. \u00DAltima revisi\u00F3n: hace 5 minutos.',
-  'sync': '\uD83D\uDD04 \u00DAltima sincronizaci\u00F3n: hace 2 minutos. 315 archivos indexados en Drive. Todo est\u00E1 actualizado. \u00BFQuieres que fuerce una nueva sincronizaci\u00F3n?',
-  'sincronizar': '\uD83D\uDD04 \u00DAltima sincronizaci\u00F3n: hace 2 minutos. 315 archivos indexados en Drive. Todo est\u00E1 actualizado.',
-  'contactos': '\uD83D\uDCC0 Tenemos 1.247 contactos en el CRM. Los m\u00E1s recientes son:\n\n1) Mar\u00EDa Garc\u00EDa (Idealista) \u2014 Hoy\n2) Juan P\u00E9rez (Fotocasa) \u2014 Hoy\n3) Ana L\u00F3pez (WhatsApp) \u2014 Hoy\n4) Carlos Ruiz (Idealista) \u2014 Ayer\n5) Laura Mart\u00EDnez (Web) \u2014 Ayer',
-  'mejor comercial': '\uD83E\uDD47 El comercial con m\u00E1s cierres este mes es el Agente 1 con 12 operaciones cerradas. Le sigue el Agente 2 con 8 operaciones.',
-  'operaciones': '\uD83D\uDCC8 Hay 34 operaciones en total: 28 activas y 6 cerradas este mes. Ingresos por comisiones: 148.000\u20AC. 5 operaciones est\u00E1n en fase de negociaci\u00F3n a punto de cerrar.',
-  'documentos': '\uD83D\uDCC4 En Drive tenemos 315 documentos:\n\n\u2022 156 grabaciones de llamadas\n\u2022 23 archivos Excel (inventarios y datos)\n\u2022 47 PDFs de contratos\n\u2022 89 fotos de propiedades',
-};
+function getWelcomeMessage(stats: SystemStats) {
+  return `\uD83D\uDC4B \u00A1Hola! Soy CEREBRO, el asistente inteligente de Promurcia.\n\nTengo acceso completo al sistema en tiempo real:\n\u2022 ${stats.leads} leads (${stats.leadsToday} hoy)\n\u2022 ${stats.properties} propiedades\n\u2022 ${stats.transcriptions} transcripciones\n\u2022 ${stats.operations} operaciones\n\u2022 ${stats.tasks} tareas\n\u00BFEn qu\u00E9 puedo ayudarte hoy?`;
+}
 
-function getCerebroResponse(input: string): string {
+function getCerebroResponse(input: string, stats: SystemStats): string {
   const lower = input.toLowerCase().trim();
-  for (const [key, response] of Object.entries(CEREBRO_RESPONSES)) {
-    if (lower.includes(key)) return response;
+
+  if (lower.includes('drive') || lower.includes('google drive') || lower.includes('acceso drive')) {
+    return `\uD83D\uDCBE La conexi\u00F3n con Google Drive requiere la clave de cuenta de servicio. Una vez configurada, escanear\u00E1 los archivos y los procesar\u00E9 autom\u00E1ticamente. Actualmente hay ${stats.imports} importaciones registradas en la base de datos.`;
   }
-  if (lower.length < 3) return CEREBRO_RESPONSES['hola'];
-  return `\uD83E\uDDE0 He analizado tu pregunta sobre "${input}".\n\nTengo acceso completo a todos los datos del sistema:\n\u2022 1.247 leads (3 nuevos hoy)\n\u2022 89 propiedades\n\u2022 156 transcripciones\n\u2022 315 archivos en Drive\n\u2022 34 operaciones activas\n\u2022 89 tareas\n\n\u00BFPuedes ser m\u00E1s espec\u00EDfico? Por ejemplo:\n\u2022 "\u00BFCu\u00E1ntos leads hay?"\n\u2022 "\u00BFQu\u00E9 transcripciones tenemos?"\n\u2022 "\u00BFCu\u00E1l es el estado del pipeline?"`;
+  if (lower.includes('leads hoy')) {
+    return `\uD83D\uDCE2 Hoy han entrado ${stats.leadsToday} leads nuevos. En total hay ${stats.leads} leads en el CRM.`;
+  }
+  if (lower.includes('leads') || lower.includes('contactos')) {
+    return `\uD83D\uDCCA Tenemos ${stats.leads} leads en total. Hoy han entrado ${stats.leadsToday} nuevos. Abre CRM Leads para ver el detalle y filtrar por fuente, estado o prioridad.`;
+  }
+  if (lower.includes('propiedades') || lower.includes('propiedad')) {
+    return `\uD83C\uDFE0 Tenemos ${stats.properties} propiedades registradas. Abre CRM Propiedades para consultar precios, zona y disponibilidad.`;
+  }
+  if (lower.includes('transcripcion') || lower.includes('grabaciones')) {
+    return `\uD83C\uDF99\uFE0F Hay ${stats.transcriptions} transcripciones registradas. Cuando configures Google Speech-to-Text, se transcribir\u00E1n autom\u00E1ticamente las llamadas de Drive.`;
+  }
+  if (lower.includes('pipeline') || lower.includes('operaciones') || lower.includes('ventas')) {
+    return `\uD83D\uDCC8 Actualmente hay ${stats.operations} operaciones en el CRM. Abre CRM Operaciones para ver el pipeline y etapas.`;
+  }
+  if (lower.includes('tareas')) {
+    return `\u26A0\uFE0F Hay ${stats.tasks} tareas en el sistema. Revisa el CRM Panel para ver las tareas pendientes y vencidas.`;
+  }
+  if (lower.includes('estado') || lower.includes('sistema')) {
+    return `\u2705 Estado actual del sistema:\n\n\uD83D\uDC64 Leads: ${stats.leads} (${stats.leadsToday} hoy)\n\uD83C\uDFE0 Propiedades: ${stats.properties}\n\uD83D\uDCC8 Operaciones: ${stats.operations}\n\uD83C\uDF99\uFE0F Transcripciones: ${stats.transcriptions}\n\u26A0\uFE0F Tareas: ${stats.tasks}\n\uD83D\uDCC4 Importaciones: ${stats.imports}\n\nTodo funciona correctamente.`;
+  }
+  if (lower.includes('gmail') || lower.includes('email')) {
+    return `\uD83D\uDCE7 La integraci\u00F3n con Gmail requiere credenciales de Google. Configura GOOGLE_SERVICE_ACCOUNT_KEY para empezar a procesar emails.`;
+  }
+  if (lower.includes('hola')) {
+    return getWelcomeMessage(stats);
+  }
+
+  return `\uD83E\uDDE0 He analizado tu pregunta sobre "${input}".\n\nEstado actual:\n\u2022 ${stats.leads} leads (${stats.leadsToday} hoy)\n\u2022 ${stats.properties} propiedades\n\u2022 ${stats.transcriptions} transcripciones\n\u2022 ${stats.operations} operaciones\n\u2022 ${stats.tasks} tareas\n\n\u00BFPuedes ser m\u00E1s espec\u00EDfico?`;
 }
 
 /* ═══════════════════════════════════════════
@@ -174,7 +174,7 @@ function Sidebar({ activeTab, onTabChange }: { activeTab: string; onTabChange: (
 /* ═══════════════════════════════════════════
    PESTA\u00D1A 1: CHAT
    ═══════════════════════════════════════════ */
-function ChatTab() {
+function ChatTab({ stats }: { stats: SystemStats }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -192,7 +192,7 @@ function ChatTab() {
         setMessages([{
           id: Date.now(),
           role: 'ai',
-          text: CEREBRO_RESPONSES['hola'],
+          text: getWelcomeMessage(stats),
           time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
         }]);
         setIsTyping(false);
@@ -210,7 +210,7 @@ function ChatTab() {
     setIsTyping(true);
 
     setTimeout(() => {
-      const response = getCerebroResponse(question);
+      const response = getCerebroResponse(question, stats);
       const aiMsg: ChatMessage = { id: Date.now() + 1, role: 'ai', text: response, time: now };
       setMessages(prev => [...prev, aiMsg]);
       setIsTyping(false);
@@ -319,13 +319,13 @@ function ChatTab() {
 /* ═══════════════════════════════════════════
    PESTA\u00D1A 2: PANEL DE CONTROL
    ═══════════════════════════════════════════ */
-function DashboardTab() {
-  const leadsCount = useAnimatedCounter(SYSTEM_STATE.leads.total);
-  const propsCount = useAnimatedCounter(SYSTEM_STATE.properties.total);
-  const transCount = useAnimatedCounter(SYSTEM_STATE.transcriptions.total);
-  const docsCount = useAnimatedCounter(SYSTEM_STATE.drive.files);
-  const emailCount = useAnimatedCounter(SYSTEM_STATE.gmail.unread);
-  const opsCount = useAnimatedCounter(SYSTEM_STATE.operations.total);
+function DashboardTab({ stats }: { stats: SystemStats }) {
+  const leadsCount = useAnimatedCounter(stats.leads);
+  const propsCount = useAnimatedCounter(stats.properties);
+  const transCount = useAnimatedCounter(stats.transcriptions);
+  const docsCount = useAnimatedCounter(stats.imports);
+  const emailCount = useAnimatedCounter(0);
+  const opsCount = useAnimatedCounter(stats.operations);
 
   const [processPhase, setProcessPhase] = useState(0);
   const [processProgress, setProcessProgress] = useState(100);
@@ -803,11 +803,11 @@ function EmailTab() {
    PESTA\u00D1A 6: PROCESAMIENTO
    ═══════════════════════════════════════════ */
 function ProcessingTab() {
-  const [phases, setPhases] = useState([
-    { id: 'import', label: 'Importar', progress: 100, status: 'completed' as const },
-    { id: 'extract', label: 'Extraer', progress: 100, status: 'completed' as const },
-    { id: 'clean', label: 'Limpiar', progress: 100, status: 'completed' as const },
-    { id: 'link', label: 'Vincular', progress: 100, status: 'completed' as const },
+  const [phases, setPhases] = useState<Array<{ id: string; label: string; progress: number; status: 'completed' | 'processing' }>>([
+    { id: 'import', label: 'Importar', progress: 100, status: 'completed' },
+    { id: 'extract', label: 'Extraer', progress: 100, status: 'completed' },
+    { id: 'clean', label: 'Limpiar', progress: 100, status: 'completed' },
+    { id: 'link', label: 'Vincular', progress: 100, status: 'completed' },
   ]);
   const [reprocessing, setReprocessing] = useState(false);
 
@@ -903,16 +903,17 @@ function ProcessingTab() {
    ═══════════════════════════════════════════ */
 export default function CerebroCrmApp() {
   const [activeTab, setActiveTab] = useState('chat');
+  const stats = useSystemStats();
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'chat': return <ChatTab />;
-      case 'dashboard': return <DashboardTab />;
+      case 'chat': return <ChatTab stats={stats} />;
+      case 'dashboard': return <DashboardTab stats={stats} />;
       case 'transcriptions': return <TranscriptionsTab />;
       case 'drive': return <DriveTab />;
       case 'email': return <EmailTab />;
       case 'processing': return <ProcessingTab />;
-      default: return <ChatTab />;
+      default: return <ChatTab stats={stats} />;
     }
   };
 

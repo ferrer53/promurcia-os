@@ -6,7 +6,8 @@
  */
 
 import { z } from "zod";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, like, desc, sql } from "drizzle-orm";
+import { leads, properties } from "../../db/schema";
 import { createTRPCRouter, readOnlyProcedure, comercialProcedure } from "../lib/trpc";
 import { db } from "../../db/connection";
 import { importJobs, importRows } from "../../db/schema";

@@ -126,7 +126,7 @@ export const operationsRouter = createTRPCRouter({
       });
       if (!op) throw new Error("Operacion no encontrada");
 
-      const currentIndex = stageOrder.indexOf(op.stage);
+      const currentIndex = stageOrder.indexOf(op.stage ?? "nueva");
       let newIndex = input.direction === "next"
         ? Math.min(currentIndex + 1, stageOrder.length - 1)
         : Math.max(currentIndex - 1, 0);

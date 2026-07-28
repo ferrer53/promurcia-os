@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, like, desc, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { createTRPCRouter, readOnlyProcedure, adminProcedure } from "../lib/trpc";
 import { db } from "../../db/connection";
 import { settings } from "../../db/schema";
@@ -22,19 +22,27 @@ export const settingsRouter = createTRPCRouter({
       return setting || null;
     }),
 
-  set: adminProcedure
+  update: adminProcedure
     .input(z.object({
       key: z.string().min(1),
-      value: z.string().optional(),
+      value: z.union([z.string(), z.boolean(), z.number()]).optional(),
       category: z.string().default("general"),
     }))
     .mutation(async ({ input }) => {
       const existing = await db.query.settings.findFirst({ where: eq(settings.key, input.key) });
+      const valueStr = input.value !== undefined ? String(input.value) : undefined;
       if (existing) {
-        const result = await db.update(settings).set({ value: input.value, category: input.category, updatedAt: new Date() }).where(eq(settings.id, existing.id)).returning();
+        const result = await db.update(settings)
+          .set({ value: valueStr, category: input.category, updatedAt: new Date() })
+          .where(eq(settings.id, existing.id))
+          .returning();
         return result[0];
       }
-      const result = await db.insert(settings).values(input).returning();
+      const result = await db.insert(settings).values({
+        key: input.key,
+        value: valueStr,
+        category: input.category,
+      }).returning();
       return result[0];
     }),
 

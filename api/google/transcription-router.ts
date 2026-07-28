@@ -298,7 +298,7 @@ export const transcriptionRouter = createTRPCRouter({
         .values({
           transcriptionId: input.transcriptionId,
           sentiment: analysisResult.sentiment,
-          sentimentScore: analysisResult.sentimentScore.toFixed(4),
+          sentimentScore: analysisResult.sentimentScore,
           emotionsJson: JSON.stringify(analysisResult.emotions),
           topicsJson: JSON.stringify(analysisResult.topics),
           actionItemsJson: JSON.stringify(analysisResult.actionItems),
@@ -306,7 +306,7 @@ export const transcriptionRouter = createTRPCRouter({
           keyPointsJson: JSON.stringify(analysisResult.keyPoints),
           recommendationsJson: JSON.stringify(analysisResult.recommendations),
           speakerRatioJson: JSON.stringify(analysisResult.speakerRatio),
-          talkTimeSeconds: String(analysisResult.talkTimeSeconds),
+          talkTimeSeconds: analysisResult.talkTimeSeconds,
         })
         .returning();
 
@@ -516,8 +516,8 @@ async function processTranscription(
       .set({
         processingStatus: "completed",
         transcript: result.transcript,
-        confidence: String(result.confidence),
-        duration: String(result.duration),
+        confidence: result.confidence,
+        duration: result.duration,
         wordCount: result.words.length,
         wordsJson: JSON.stringify(result.words),
         speakersJson: JSON.stringify(result.speakerLabels),

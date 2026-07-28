@@ -1,4 +1,5 @@
 import type { CookieOptions } from "hono/utils/cookie";
+import type { SerializeOptions } from "cookie";
 
 function isLocalhost(headers: Headers): boolean {
   const host = headers.get("host") || "";
@@ -14,4 +15,22 @@ export function getSessionCookieOptions(headers: Headers): CookieOptions {
     sameSite: localhost ? "Lax" : "None",
     secure: !localhost,
   };
+}
+
+export function serializeSessionCookie(
+  headers: Headers,
+  overrides?: SerializeOptions,
+): SerializeOptions {
+  const opts = getSessionCookieOptions(headers);
+  const result: SerializeOptions = {
+    httpOnly: opts.httpOnly,
+    path: opts.path,
+    sameSite: opts.sameSite?.toLowerCase() as "lax" | "none" | "strict",
+    secure: opts.secure,
+    ...overrides,
+  };
+  if (!result.secure) {
+    delete result.sameSite;
+  }
+  return result;
 }

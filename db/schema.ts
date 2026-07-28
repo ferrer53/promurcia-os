@@ -1,344 +1,347 @@
 import {
-  mysqlTable,
-  mysqlEnum,
-  serial,
-  varchar,
+  sqliteTable,
   text,
-  timestamp,
-  int,
-  json,
-  decimal,
+  integer,
   real,
-  // bigint,
-} from "drizzle-orm/mysql-core";
+} from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
 // ═══════════════════════════════════════════════════════════
 //  CORE TABLES (already in DB)
 // ═══════════════════════════════════════════════════════════
 
-export const users = mysqlTable("users", {
-  id: serial("id").primaryKey(),
-  unionId: varchar("unionId", { length: 255 }).notNull().unique(),
-  name: varchar("name", { length: 255 }),
-  email: varchar("email", { length: 320 }),
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  unionId: text("unionId").notNull().default(sql`(lower(hex(randomblob(16))))`).unique(),
+  name: text("name"),
+  email: text("email"),
   avatar: text("avatar"),
-  role: mysqlEnum("role", ["user", "admin", "superCEO", "operaciones", "comercial", "agente", "solo_lectura"]).default("user").notNull(),
-  status: mysqlEnum("status", ["active", "inactive"]).default("active"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  role: text("role", ["user", "admin", "superCEO", "operaciones", "comercial", "agente", "solo_lectura"]).default("comercial").notNull(),
+  status: text("status", ["active", "inactive", "suspended"]).default("active"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-export const alerts = mysqlTable("alerts", {
-  id: serial("id").primaryKey(),
-  type: mysqlEnum("type", ["lead", "property", "task", "system", "offer", "reservation"]).default("system").notNull(),
-  severity: mysqlEnum("severity", ["info", "warning", "critical"]).default("info").notNull(),
-  title: varchar("title", { length: 255 }).notNull(),
+export const authCredentials = sqliteTable("auth_credentials", {
+  userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  passwordHash: text("password_hash").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+});
+
+export type AuthCredential = typeof authCredentials.$inferSelect;
+export type InsertAuthCredential = typeof authCredentials.$inferInsert;
+
+export const alerts = sqliteTable("alerts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  type: text("type", ["lead", "property", "task", "system", "offer", "reservation"]).default("system").notNull(),
+  severity: text("severity", ["info", "warning", "critical"]).default("info").notNull(),
+  title: text("title").notNull(),
   message: text("message"),
-  entityType: mysqlEnum("entity_type", ["lead", "property", "operation", "task", "system"]).default("system"),
-  entityId: int("entity_id"),
-  read: int("read").default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  entityType: text("entity_type", ["lead", "property", "operation", "task", "system"]).default("system"),
+  entityId: integer("entity_id"),
+  read: integer("read", { mode: "boolean" }).default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Alert = typeof alerts.$inferSelect;
 
-export const cerebroSessions = mysqlTable("cerebro_sessions", {
-  id: serial("id").primaryKey(),
-  title: varchar("title", { length: 255 }),
-  userId: int("user_id"),
+export const cerebroSessions = sqliteTable("cerebro_sessions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title"),
+  userId: integer("user_id"),
   context: text("context"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type CerebroSession = typeof cerebroSessions.$inferSelect;
 
-export const cerebroMessages = mysqlTable("cerebro_messages", {
-  id: serial("id").primaryKey(),
-  sessionId: int("session_id").notNull(),
-  role: mysqlEnum("role", ["user", "assistant", "system"]).default("user").notNull(),
+export const cerebroMessages = sqliteTable("cerebro_messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  sessionId: integer("session_id").notNull(),
+  role: text("role", ["user", "assistant", "system"]).default("user").notNull(),
   content: text("content"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type CerebroMessage = typeof cerebroMessages.$inferSelect;
 
-export const documents = mysqlTable("documents", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  type: mysqlEnum("type", ["contract", "invoice", "report", "photo", "identity", "other"]).default("other").notNull(),
-  entityType: mysqlEnum("entity_type", ["lead", "property", "operation"]),
-  entityId: int("entity_id"),
+export const documents = sqliteTable("documents", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  type: text("type", ["contract", "invoice", "report", "photo", "identity", "other"]).default("other").notNull(),
+  entityType: text("entity_type", ["lead", "property", "operation"]),
+  entityId: integer("entity_id"),
   filePath: text("file_path"),
-  fileSize: int("file_size"),
-  mimeType: varchar("mime_type", { length: 100 }),
-  uploadedBy: int("uploaded_by"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  fileSize: integer("file_size"),
+  mimeType: text("mime_type"),
+  uploadedBy: integer("uploaded_by"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Document = typeof documents.$inferSelect;
 
-export const interactions = mysqlTable("interactions", {
-  id: serial("id").primaryKey(),
-  type: mysqlEnum("type", ["call", "email", "visit", "note", "whatsapp", "sms"]).default("note").notNull(),
-  leadId: int("lead_id"),
-  propertyId: int("property_id"),
-  operationId: int("operation_id"),
+export const interactions = sqliteTable("interactions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  type: text("type", ["call", "email", "visit", "note", "whatsapp", "sms"]).default("note").notNull(),
+  leadId: integer("lead_id"),
+  propertyId: integer("property_id"),
+  operationId: integer("operation_id"),
   content: text("content"),
-  direction: mysqlEnum("direction", ["inbound", "outbound"]).default("inbound"),
-  duration: int("duration"),
-  createdBy: int("created_by"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  direction: text("direction", ["inbound", "outbound"]).default("inbound"),
+  duration: integer("duration"),
+  createdBy: integer("created_by"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Interaction = typeof interactions.$inferSelect;
 
-export const knowledgeArticles = mysqlTable("knowledge_articles", {
-  id: serial("id").primaryKey(),
-  title: varchar("title", { length: 255 }).notNull(),
-  slug: varchar("slug", { length: 255 }).unique(),
+export const knowledgeArticles = sqliteTable("knowledge_articles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  slug: text("slug").unique(),
   content: text("content"),
-  category: varchar("category", { length: 100 }),
+  category: text("category"),
   tags: text("tags"),
   template: text("template"),
-  isPublic: int("is_public").default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  isPublic: integer("is_public", { mode: "boolean" }).default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type KnowledgeArticle = typeof knowledgeArticles.$inferSelect;
 
-export const leadProperties = mysqlTable("lead_properties", {
-  id: serial("id").primaryKey(),
-  leadId: int("lead_id").notNull(),
-  propertyId: int("property_id").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const leadProperties = sqliteTable("lead_properties", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leadId: integer("lead_id").notNull(),
+  propertyId: integer("property_id").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type LeadProperty = typeof leadProperties.$inferSelect;
 
-export const leads = mysqlTable("leads", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  email: varchar("email", { length: 320 }),
-  phone: varchar("phone", { length: 50 }),
-  source: mysqlEnum("source", ["manual", "idealista", "fotocasa", "pisos", "habitaclia", "milanuncios", "yaencontre", "email", "whatsapp", "webhook", "phone", "referral", "web", "import"]).default("manual"),
-  status: mysqlEnum("status", ["nuevo", "contactado", "calificado", "en_seguimiento", "descartado", "convertido"]).default("nuevo"),
-  tier: mysqlEnum("tier", ["hot", "warm", "cold"]).default("warm"),
-  persona: mysqlEnum("persona", ["inversor", "familia", "joven", "extranjero", "empresa", "particular"]),
-  score: int("score").default(0),
+export const leads = sqliteTable("leads", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  source: text("source", ["manual", "idealista", "fotocasa", "pisos", "habitaclia", "milanuncios", "yaencontre", "email", "whatsapp", "webhook", "phone", "referral", "web", "import"]).default("manual"),
+  status: text("status", ["nuevo", "contactado", "calificado", "en_seguimiento", "descartado", "convertido"]).default("nuevo"),
+  tier: text("tier", ["hot", "warm", "cold"]).default("warm"),
+  persona: text("persona", ["inversor", "familia", "joven", "extranjero", "empresa", "particular"]),
+  score: integer("score").default(0),
   tags: text("tags"),
-  operationType: mysqlEnum("operation_type", ["compra", "alquiler", "venta"]),
-  zone: varchar("zone", { length: 255 }),
+  operationType: text("operation_type", ["compra", "alquiler", "venta"]),
+  zone: text("zone"),
   budgetMin: real("budget_min"),
   budgetMax: real("budget_max"),
-  bedrooms: int("bedrooms"),
-  bathrooms: int("bathrooms"),
-  squareMeters: int("square_meters"),
-  urgency: mysqlEnum("urgency", ["alta", "media", "baja"]).default("media"),
+  bedrooms: integer("bedrooms"),
+  bathrooms: integer("bathrooms"),
+  squareMeters: integer("square_meters"),
+  urgency: text("urgency", ["alta", "media", "baja"]).default("media"),
   notes: text("notes"),
-  assignedTo: int("assigned_to"),
+  assignedTo: integer("assigned_to"),
   aiClassification: text("ai_classification"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Lead = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
 
-export const offers = mysqlTable("offers", {
-  id: serial("id").primaryKey(),
-  type: mysqlEnum("type", ["purchase", "rental"]).default("purchase"),
-  propertyId: int("property_id"),
-  leadId: int("lead_id"),
-  status: mysqlEnum("status", ["pending", "accepted", "rejected", "negotiating"]).default("pending"),
+export const offers = sqliteTable("offers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  type: text("type", ["purchase", "rental"]).default("purchase"),
+  propertyId: integer("property_id"),
+  leadId: integer("lead_id"),
+  status: text("status", ["pending", "accepted", "rejected", "negotiating"]).default("pending"),
   amount: real("amount"),
   conditions: text("conditions"),
-  validUntil: timestamp("valid_until"),
+  validUntil: integer("valid_until", { mode: "timestamp" }),
   content: text("content"),
-  createdBy: int("created_by"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdBy: integer("created_by"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Offer = typeof offers.$inferSelect;
 
-export const operationChecklist = mysqlTable("operation_checklist", {
-  id: serial("id").primaryKey(),
-  operationId: int("operation_id").notNull(),
-  label: varchar("label", { length: 255 }).notNull(),
-  checked: int("checked").default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const operationChecklist = sqliteTable("operation_checklist", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  operationId: integer("operation_id").notNull(),
+  label: text("label").notNull(),
+  checked: integer("checked", { mode: "boolean" }).default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type OperationChecklistItem = typeof operationChecklist.$inferSelect;
 
-export const operationTimeline = mysqlTable("operation_timeline", {
-  id: serial("id").primaryKey(),
-  operationId: int("operation_id").notNull(),
-  stage: varchar("stage", { length: 100 }),
-  action: varchar("action", { length: 255 }),
+export const operationTimeline = sqliteTable("operation_timeline", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  operationId: integer("operation_id").notNull(),
+  stage: text("stage"),
+  action: text("action"),
   notes: text("notes"),
-  createdBy: int("created_by"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdBy: integer("created_by"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type OperationTimelineEvent = typeof operationTimeline.$inferSelect;
 
-export const operations = mysqlTable("operations", {
-  id: serial("id").primaryKey(),
-  type: mysqlEnum("type", ["compra", "alquiler", "venta"]).default("compra"),
-  status: mysqlEnum("status", ["activa", "cerrada", "cancelada", "pendiente"]).default("pendiente"),
-  stage: varchar("stage", { length: 100 }),
-  leadId: int("lead_id"),
-  propertyId: int("property_id"),
-  agentId: int("agent_id"),
-  title: varchar("title", { length: 255 }),
+export const operations = sqliteTable("operations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  type: text("type", ["compra", "alquiler", "venta"]).default("compra"),
+  status: text("status", ["activa", "cerrada", "cancelada", "pendiente"]).default("pendiente"),
+  stage: text("stage"),
+  leadId: integer("lead_id"),
+  propertyId: integer("property_id"),
+  agentId: integer("agent_id"),
+  title: text("title"),
   description: text("description"),
   estimatedValue: real("estimated_value"),
   finalValue: real("final_value"),
   commission: real("commission"),
-  startDate: timestamp("start_date"),
-  closeDate: timestamp("close_date"),
-  estimatedCloseDate: timestamp("estimated_close_date"),
+  startDate: integer("start_date", { mode: "timestamp" }),
+  closeDate: integer("close_date", { mode: "timestamp" }),
+  estimatedCloseDate: integer("estimated_close_date", { mode: "timestamp" }),
   closeReason: text("close_reason"),
-  isSuccess: int("is_success").default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  isSuccess: integer("is_success", { mode: "boolean" }).default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Operation = typeof operations.$inferSelect;
 
-export const prequalifications = mysqlTable("prequalifications", {
-  id: serial("id").primaryKey(),
-  leadId: int("lead_id").notNull(),
+export const prequalifications = sqliteTable("prequalifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leadId: integer("lead_id").notNull(),
   monthlyIncome: real("monthly_income"),
-  employmentStatus: varchar("employment_status", { length: 50 }),
-  contractType: varchar("contract_type", { length: 50 }),
-  hasGuarantor: int("has_guarantor").default(0),
-  pets: int("pets").default(0),
-  smoker: int("smoker").default(0),
-  numOccupants: int("num_occupants"),
-  preferredEntryDate: timestamp("preferred_entry_date"),
+  employmentStatus: text("employment_status"),
+  contractType: text("contract_type"),
+  hasGuarantor: integer("has_guarantor", { mode: "boolean" }).default(false),
+  pets: integer("pets", { mode: "boolean" }).default(false),
+  smoker: integer("smoker", { mode: "boolean" }).default(false),
+  numOccupants: integer("num_occupants"),
+  preferredEntryDate: integer("preferred_entry_date", { mode: "timestamp" }),
   maxBudget: real("max_budget"),
-  score: int("score"),
-  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending"),
+  score: integer("score"),
+  status: text("status", ["pending", "approved", "rejected"]).default("pending"),
   notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Prequalification = typeof prequalifications.$inferSelect;
 
-export const properties = mysqlTable("properties", {
-  id: serial("id").primaryKey(),
-  reference: varchar("reference", { length: 50 }).unique(),
-  title: varchar("title", { length: 255 }),
+export const properties = sqliteTable("properties", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  reference: text("reference").unique(),
+  title: text("title"),
   description: text("description"),
-  type: mysqlEnum("type", ["piso", "casa", "atico", "duplex", "estudio", "local", "oficina", "nave", "terreno", "garaje", "trastero"]).default("piso"),
-  status: mysqlEnum("status", ["disponible", "reservado", "vendido", "alquilado", "inactivo"]).default("disponible"),
-  operation: mysqlEnum("operation", ["venta", "alquiler", "venta_alquiler"]).default("venta"),
+  type: text("type", ["piso", "casa", "atico", "duplex", "estudio", "local", "oficina", "nave", "terreno", "garaje", "trastero"]).default("piso"),
+  status: text("status", ["disponible", "reservado", "vendido", "alquilado", "inactivo"]).default("disponible"),
+  operation: text("operation", ["venta", "alquiler", "venta_alquiler"]).default("venta"),
   price: real("price"),
   priceSale: real("price_sale"),
-  zone: varchar("zone", { length: 255 }),
+  zone: text("zone"),
   address: text("address"),
-  city: varchar("city", { length: 255 }),
-  postalCode: varchar("postal_code", { length: 20 }),
-  bedrooms: int("bedrooms"),
-  bathrooms: int("bathrooms"),
-  squareMeters: int("square_meters"),
-  squareMetersUseful: int("square_meters_useful"),
-  floor: int("floor"),
-  hasElevator: int("has_elevator").default(0),
-  hasTerrace: int("has_terrace").default(0),
-  hasParking: int("has_parking").default(0),
-  hasStorage: int("has_storage").default(0),
-  hasPool: int("has_pool").default(0),
-  hasGarden: int("has_garden").default(0),
-  hasAirConditioning: int("has_air_conditioning").default(0),
-  hasHeating: int("has_heating").default(0),
-  hasFurniture: int("has_furniture").default(0),
-  yearBuilt: int("year_built"),
-  condition: varchar("condition", { length: 50 }),
-  energyRating: varchar("energy_rating", { length: 10 }),
+  city: text("city"),
+  postalCode: text("postal_code"),
+  bedrooms: integer("bedrooms"),
+  bathrooms: integer("bathrooms"),
+  squareMeters: integer("square_meters"),
+  squareMetersUseful: integer("square_meters_useful"),
+  floor: integer("floor"),
+  hasElevator: integer("has_elevator", { mode: "boolean" }).default(false),
+  hasTerrace: integer("has_terrace", { mode: "boolean" }).default(false),
+  hasParking: integer("has_parking", { mode: "boolean" }).default(false),
+  hasStorage: integer("has_storage", { mode: "boolean" }).default(false),
+  hasPool: integer("has_pool", { mode: "boolean" }).default(false),
+  hasGarden: integer("has_garden", { mode: "boolean" }).default(false),
+  hasAirConditioning: integer("has_air_conditioning", { mode: "boolean" }).default(false),
+  hasHeating: integer("has_heating", { mode: "boolean" }).default(false),
+  hasFurniture: integer("has_furniture", { mode: "boolean" }).default(false),
+  yearBuilt: integer("year_built"),
+  condition: text("condition"),
+  energyRating: text("energy_rating"),
   lat: real("lat"),
   lng: real("lng"),
   images: text("images"),
   videoUrl: text("video_url"),
   virtualTourUrl: text("virtual_tour_url"),
-  ownerName: varchar("owner_name", { length: 255 }),
-  ownerPhone: varchar("owner_phone", { length: 50 }),
-  ownerEmail: varchar("owner_email", { length: 320 }),
+  ownerName: text("owner_name"),
+  ownerPhone: text("owner_phone"),
+  ownerEmail: text("owner_email"),
   ibi: real("ibi"),
   communityFees: real("community_fees"),
   monthlyRent: real("monthly_rent"),
   profitability: real("profitability"),
   notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Property = typeof properties.$inferSelect;
 
-export const reservations = mysqlTable("reservations", {
-  id: serial("id").primaryKey(),
-  propertyId: int("property_id"),
-  leadId: int("lead_id"),
-  status: mysqlEnum("status", ["active", "cancelled", "expired", "converted"]).default("active"),
+export const reservations = sqliteTable("reservations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  propertyId: integer("property_id"),
+  leadId: integer("lead_id"),
+  status: text("status", ["active", "cancelled", "expired", "converted"]).default("active"),
   amount: real("amount"),
-  startDate: timestamp("start_date"),
-  endDate: timestamp("end_date"),
+  startDate: integer("start_date", { mode: "timestamp" }),
+  endDate: integer("end_date", { mode: "timestamp" }),
   notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Reservation = typeof reservations.$inferSelect;
 
-export const settings = mysqlTable("settings", {
-  id: serial("id").primaryKey(),
-  key: varchar("key", { length: 255 }).notNull().unique(),
+export const settings = sqliteTable("settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  key: text("key").notNull().unique(),
   value: text("value"),
-  category: varchar("category", { length: 100 }),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  category: text("category"),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Setting = typeof settings.$inferSelect;
 
-export const tasks = mysqlTable("tasks", {
-  id: serial("id").primaryKey(),
-  title: varchar("title", { length: 255 }).notNull(),
+export const tasks = sqliteTable("tasks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
   description: text("description"),
-  status: mysqlEnum("status", ["pending", "in_progress", "completed", "cancelled"]).default("pending"),
-  priority: mysqlEnum("priority", ["low", "medium", "high", "urgent"]).default("medium"),
-  assignedTo: int("assigned_to"),
-  leadId: int("lead_id"),
-  propertyId: int("property_id"),
-  operationId: int("operation_id"),
-  dueDate: timestamp("due_date"),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  status: text("status", ["pending", "in_progress", "completed", "cancelled"]).default("pending"),
+  priority: text("priority", ["low", "medium", "high", "urgent"]).default("medium"),
+  assignedTo: integer("assigned_to"),
+  leadId: integer("lead_id"),
+  propertyId: integer("property_id"),
+  operationId: integer("operation_id"),
+  dueDate: integer("due_date", { mode: "timestamp" }),
+  completedAt: integer("completed_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Task = typeof tasks.$inferSelect;
 
-export const visits = mysqlTable("visits", {
-  id: serial("id").primaryKey(),
-  propertyId: int("property_id"),
-  leadId: int("lead_id"),
-  agentId: int("agent_id"),
-  status: mysqlEnum("status", ["scheduled", "completed", "cancelled", "no_show"]).default("scheduled"),
-  scheduledAt: timestamp("scheduled_at"),
-  completedAt: timestamp("completed_at"),
+export const visits = sqliteTable("visits", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  propertyId: integer("property_id"),
+  leadId: integer("lead_id"),
+  agentId: integer("agent_id"),
+  status: text("status", ["scheduled", "completed", "cancelled", "no_show"]).default("scheduled"),
+  scheduledAt: integer("scheduled_at", { mode: "timestamp" }),
+  completedAt: integer("completed_at", { mode: "timestamp" }),
   feedback: text("feedback"),
-  rating: int("rating"),
+  rating: integer("rating"),
   notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Visit = typeof visits.$inferSelect;
@@ -347,29 +350,29 @@ export type Visit = typeof visits.$inferSelect;
 //  GOOGLE INTEGRATION TABLES (new)
 // ═══════════════════════════════════════════════════════════
 
-export const transcriptions = mysqlTable("crm_transcriptions", {
-  id: serial("id").primaryKey(),
-  fileName: varchar("fileName", { length: 500 }).notNull(),
-  fileSize: varchar("fileSize", { length: 50 }).default("0"),
-  duration: decimal("duration", { precision: 10, scale: 2 }).default("0"),
-  driveFileId: varchar("driveFileId", { length: 100 }),
-  driveFileUrl: varchar("driveFileUrl", { length: 500 }),
-  driveFolderId: varchar("driveFolderId", { length: 100 }),
-  mimeType: varchar("mimeType", { length: 100 }),
+export const transcriptions = sqliteTable("crm_transcriptions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  fileName: text("fileName").notNull(),
+  fileSize: text("fileSize").default("0"),
+  duration: real("duration").default(0),
+  driveFileId: text("driveFileId"),
+  driveFileUrl: text("driveFileUrl"),
+  driveFolderId: text("driveFolderId"),
+  mimeType: text("mimeType"),
 
   transcript: text("transcript"),
-  confidence: decimal("confidence", { precision: 5, scale: 4 }).default("0"),
-  speakerCount: int("speakerCount").default(2),
-  languageCode: varchar("languageCode", { length: 10 }).default("es-ES"),
-  wordCount: int("wordCount").default(0),
+  confidence: real("confidence").default(0),
+  speakerCount: integer("speakerCount").default(2),
+  languageCode: text("languageCode").default("es-ES"),
+  wordCount: integer("wordCount").default(0),
   wordsJson: text("wordsJson"),
   speakersJson: text("speakersJson"),
 
-  leadId: int("leadId"),
-  propertyId: int("propertyId"),
+  leadId: integer("leadId"),
+  propertyId: integer("propertyId"),
   notes: text("notes"),
 
-  processingStatus: mysqlEnum("processingStatus", [
+  processingStatus: text("processingStatus", [
     "pending",
     "downloading",
     "transcribing",
@@ -380,21 +383,21 @@ export const transcriptions = mysqlTable("crm_transcriptions", {
     .default("pending")
     .notNull(),
   errorMessage: text("errorMessage"),
-  processedBy: int("processedBy"),
-  processedAt: timestamp("processedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  processedBy: integer("processedBy"),
+  processedAt: integer("processedAt", { mode: "timestamp" }),
+  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Transcription = typeof transcriptions.$inferSelect;
 export type InsertTranscription = typeof transcriptions.$inferInsert;
 
-export const transcriptionAnalysis = mysqlTable("crm_transcriptionAnalysis", {
-  id: serial("id").primaryKey(),
-  transcriptionId: int("transcriptionId").notNull(),
+export const transcriptionAnalysis = sqliteTable("crm_transcriptionAnalysis", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  transcriptionId: integer("transcriptionId").notNull(),
 
-  sentiment: varchar("sentiment", { length: 20 }),
-  sentimentScore: decimal("sentimentScore", { precision: 5, scale: 4 }),
+  sentiment: text("sentiment"),
+  sentimentScore: real("sentimentScore"),
   emotionsJson: text("emotionsJson"),
 
   topicsJson: text("topicsJson"),
@@ -404,22 +407,22 @@ export const transcriptionAnalysis = mysqlTable("crm_transcriptionAnalysis", {
   recommendationsJson: text("recommendationsJson"),
 
   speakerRatioJson: text("speakerRatioJson"),
-  talkTimeSeconds: decimal("talkTimeSeconds", { precision: 10, scale: 2 }),
+  talkTimeSeconds: real("talkTimeSeconds"),
 
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type TranscriptionAnalysis = typeof transcriptionAnalysis.$inferSelect;
 export type InsertTranscriptionAnalysis = typeof transcriptionAnalysis.$inferInsert;
 
-export const driveSyncLog = mysqlTable("crm_driveSyncLog", {
-  id: serial("id").primaryKey(),
-  folderId: varchar("folderId", { length: 100 }).notNull(),
-  folderName: varchar("folderName", { length: 255 }),
-  fileId: varchar("fileId", { length: 100 }).notNull(),
-  fileName: varchar("fileName", { length: 500 }).notNull(),
-  action: mysqlEnum("action", [
+export const driveSyncLog = sqliteTable("crm_driveSyncLog", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  folderId: text("folderId").notNull(),
+  folderName: text("folderName"),
+  fileId: text("fileId").notNull(),
+  fileName: text("fileName").notNull(),
+  action: text("action", [
     "discovered",
     "transcribed",
     "imported",
@@ -430,31 +433,31 @@ export const driveSyncLog = mysqlTable("crm_driveSyncLog", {
     .default("discovered")
     .notNull(),
   details: text("details"),
-  mimeType: varchar("mimeType", { length: 100 }),
-  fileSize: varchar("fileSize", { length: 50 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  mimeType: text("mimeType"),
+  fileSize: text("fileSize"),
+  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type DriveSyncLog = typeof driveSyncLog.$inferSelect;
 export type InsertDriveSyncLog = typeof driveSyncLog.$inferInsert;
 
-export const documentImports = mysqlTable("crm_documentImports", {
-  id: serial("id").primaryKey(),
-  fileName: varchar("fileName", { length: 500 }).notNull(),
-  fileType: mysqlEnum("fileType", ["excel", "csv", "pdf", "docx", "other"]).notNull(),
-  source: mysqlEnum("source", ["drive", "upload"]).default("drive").notNull(),
-  driveFileId: varchar("driveFileId", { length: 100 }),
-  driveFileUrl: varchar("driveFileUrl", { length: 500 }),
+export const documentImports = sqliteTable("crm_documentImports", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  fileName: text("fileName").notNull(),
+  fileType: text("fileType", ["excel", "csv", "pdf", "docx", "other"]).notNull(),
+  source: text("source", ["drive", "upload"]).default("drive").notNull(),
+  driveFileId: text("driveFileId"),
+  driveFileUrl: text("driveFileUrl"),
 
   extractedDataJson: text("extractedDataJson"),
-  schemaDetected: varchar("schemaDetected", { length: 100 }),
-  rowCount: int("rowCount").default(0),
-  importedCount: int("importedCount").default(0),
-  duplicateCount: int("duplicateCount").default(0),
-  errorCount: int("errorCount").default(0),
+  schemaDetected: text("schemaDetected"),
+  rowCount: integer("rowCount").default(0),
+  importedCount: integer("importedCount").default(0),
+  duplicateCount: integer("duplicateCount").default(0),
+  errorCount: integer("errorCount").default(0),
 
   mappingJson: text("mappingJson"),
-  importTarget: mysqlEnum("importTarget", [
+  importTarget: text("importTarget", [
     "leads",
     "properties",
     "operations",
@@ -462,16 +465,61 @@ export const documentImports = mysqlTable("crm_documentImports", {
     "none",
   ]).default("none"),
 
-  status: mysqlEnum("status", ["pending", "processing", "completed", "error", "cancelled"])
+  status: text("status", ["pending", "processing", "completed", "error", "cancelled"])
     .default("pending")
     .notNull(),
   errorMessage: text("errorMessage"),
 
-  createdBy: int("createdBy"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-  completedAt: timestamp("completedAt"),
+  createdBy: integer("createdBy"),
+  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  completedAt: integer("completedAt", { mode: "timestamp" }),
 });
 
 export type DocumentImport = typeof documentImports.$inferSelect;
 export type InsertDocumentImport = typeof documentImports.$inferInsert;
+
+
+// ═══════════════════════════════════════════════════════════
+//  IMPORT PIPELINE TABLES
+// ═══════════════════════════════════════════════════════════
+
+export const importJobs = sqliteTable("crm_importJobs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  fileName: text("fileName").notNull(),
+  fileType: text("fileType", ["xlsx", "csv", "pdf"]).notNull(),
+  detectedType: text("detectedType", ["contacts", "properties", "mixed", "unknown"]).default("unknown"),
+  status: text("status", ["pending", "parsing", "importing", "processing", "completed", "error", "cancelled"]).default("pending").notNull(),
+  totalRows: integer("totalRows").default(0),
+  fileSize: integer("fileSize").default(0),
+  imported: integer("imported").default(0),
+  duplicates: integer("duplicates").default(0),
+  linked: integer("linked").default(0),
+  errors: integer("errors").default(0),
+  confidence: real("confidence").default(0),
+  config: text("config"),
+  errorLog: text("errorLog"),
+  completedAt: integer("completedAt", { mode: "timestamp" }),
+  createdBy: integer("createdBy"),
+  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+});
+
+export type ImportJob = typeof importJobs.$inferSelect;
+export type InsertImportJob = typeof importJobs.$inferInsert;
+
+export const importRows = sqliteTable("crm_importRows", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  importId: integer("importId").notNull(),
+  rowNumber: integer("rowNumber").notNull(),
+  rawData: text("rawData"),
+  normalizedData: text("normalizedData"),
+  status: text("status", ["pending", "created", "imported", "duplicate", "error", "skipped"]).default("pending"),
+  errorMessage: text("errorMessage"),
+  entityType: text("entityType", ["lead", "property", "mixed", "operation", "none"]).default("none"),
+  entityId: integer("entityId"),
+  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+});
+
+export type ImportRow = typeof importRows.$inferSelect;
+export type InsertImportRow = typeof importRows.$inferInsert;

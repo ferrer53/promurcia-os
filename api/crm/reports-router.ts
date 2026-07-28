@@ -2,7 +2,7 @@ import { z } from "zod";
 import { sql } from "drizzle-orm";
 import { createTRPCRouter, readOnlyProcedure } from "../lib/trpc";
 import { db } from "../../db/connection";
-import { leads, properties, operations, tasks, interactions } from "../../db/schema";
+import { leads, properties, operations, tasks, interactions, transcriptions, importJobs } from "../../db/schema";
 
 export const reportsRouter = createTRPCRouter({
   getConversionFunnel: readOnlyProcedure.query(async () => {
@@ -51,5 +51,38 @@ export const reportsRouter = createTRPCRouter({
     }).from(properties);
 
     return { byType, byStatus, avgPrice: avgPrice[0]?.avgPrice ?? 0 };
+  }),
+
+  getDashboardStats: readOnlyProcedure.query(async () => {
+    const [
+      leadsCount,
+      propertiesCount,
+      operationsCount,
+      tasksCount,
+      transcriptionsCount,
+      importsCount,
+    ] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(leads),
+      db.select({ count: sql<number>`count(*)` }).from(properties),
+      db.select({ count: sql<number>`count(*)` }).from(operations),
+      db.select({ count: sql<number>`count(*)` }).from(tasks),
+      db.select({ count: sql<number>`count(*)` }).from(transcriptions),
+      db.select({ count: sql<number>`count(*)` }).from(importJobs),
+    ]);
+
+    const todayStart = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
+    const leadsToday = await db.select({ count: sql<number>`count(*)` })
+      .from(leads)
+      .where(sql`${leads.createdAt} >= ${todayStart}`);
+
+    return {
+      leads: leadsCount[0]?.count ?? 0,
+      leadsToday: leadsToday[0]?.count ?? 0,
+      properties: propertiesCount[0]?.count ?? 0,
+      operations: operationsCount[0]?.count ?? 0,
+      tasks: tasksCount[0]?.count ?? 0,
+      transcriptions: transcriptionsCount[0]?.count ?? 0,
+      imports: importsCount[0]?.count ?? 0,
+    };
   }),
 });

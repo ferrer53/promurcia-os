@@ -4,7 +4,7 @@
  * structured data (phones, emails, prices, references, etc.)
  */
 
-import { PDFParse } from "pdf-parse";
+import PDFParse from "pdf-parse";
 
 // ── Types ───────────────────────────────────────────────────────────
 

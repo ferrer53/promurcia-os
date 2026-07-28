@@ -1,48 +1,34 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, LogIn, Shield } from 'lucide-react';
-import { useAuth, ROLE_LABELS } from '@/hooks/useAuth';
-
-const QUICK_ROLES = [
-  { key: 'superCEO', label: ROLE_LABELS.superCEO, color: '#d4a853' },
-  { key: 'admin', label: ROLE_LABELS.admin, color: '#3b82f6' },
-  { key: 'operaciones', label: ROLE_LABELS.operaciones, color: '#22c55e' },
-  { key: 'comercial', label: ROLE_LABELS.comercial, color: '#8b5cf6' },
-  { key: 'solo_lectura', label: ROLE_LABELS.solo_lectura, color: '#6b7280' },
-  { key: 'agente', label: ROLE_LABELS.agente, color: '#f59e0b' },
-];
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Login() {
-  const { login, loginAs } = useAuth();
+  const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
 
     if (!username.trim() || !password.trim()) {
-      setError('Por favor introduce usuario y contrasena');
+      setError('Por favor introduce usuario y contraseña');
       setIsSubmitting(false);
       return;
     }
 
-    const success = login(username.trim(), password.trim());
+    const success = await login(username.trim(), password.trim());
     if (success) {
-      window.location.reload();
+      window.location.href = '/';
     } else {
-      setError('Usuario o contrasena incorrectos');
+      setError('Usuario o contraseña incorrectos');
       setIsSubmitting(false);
     }
-  };
-
-  const handleQuickLogin = (role: string) => {
-    loginAs(role);
-    window.location.reload();
   };
 
   return (
@@ -102,13 +88,13 @@ export default function Login() {
             {/* Username */}
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">
-                Usuario
+                Usuario o email
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Introduce tu usuario"
+                placeholder="Introduce tu usuario o email"
                 className="w-full rounded-xl text-sm text-white placeholder-gray-600 outline-none transition-all"
                 style={{
                   height: 44,
@@ -128,14 +114,14 @@ export default function Login() {
             {/* Password */}
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">
-                Contrasena
+                Contraseña
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Introduce tu contrasena"
+                  placeholder="Introduce tu contraseña"
                   className="w-full rounded-xl text-sm text-white placeholder-gray-600 outline-none transition-all"
                   style={{
                     height: 44,
@@ -188,51 +174,9 @@ export default function Login() {
               }}
             >
               <LogIn size={16} />
-              {isSubmitting ? 'Iniciando...' : 'Iniciar Sesion'}
+              {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
             </button>
           </form>
-
-          {/* Separator */}
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
-            <span className="text-[11px]" style={{ color: '#4b5563' }}>
-              &mdash; o acceso rapido &mdash;
-            </span>
-            <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
-          </div>
-
-          {/* Quick role buttons */}
-          <div className="grid grid-cols-2 gap-2">
-            {QUICK_ROLES.map((role) => (
-              <button
-                key={role.key}
-                onClick={() => handleQuickLogin(role.key)}
-                className="flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                style={{
-                  height: 38,
-                  background: '#1a2744',
-                  border: '1px solid rgba(212,168,83,0.2)',
-                  color: '#9ca3af',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(212,168,83,0.12)';
-                  e.currentTarget.style.color = '#d4a853';
-                  e.currentTarget.style.borderColor = 'rgba(212,168,83,0.4)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#1a2744';
-                  e.currentTarget.style.color = '#9ca3af';
-                  e.currentTarget.style.borderColor = 'rgba(212,168,83,0.2)';
-                }}
-              >
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ background: role.color }}
-                />
-                {role.label}
-              </button>
-            ))}
-          </div>
 
           {/* Footer */}
           <p className="text-[10px] text-center mt-5" style={{ color: '#374151' }}>

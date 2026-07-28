@@ -20,25 +20,27 @@ export default function CrmLeadsApp() {
   const canEdit = user?.role !== 'solo_lectura';
 
   const [search, setSearch] = useState('');
-  const [estadoFilter, setEstadoFilter] = useState('todos');
-  const [fuenteFilter, setFuenteFilter] = useState('todos');
+  const [statusFilter, setStatusFilter] = useState('todos');
+  const [sourceFilter, setSourceFilter] = useState('todos');
   const [tierFilter, setTierFilter] = useState('todos');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [sortField, setSortField] = useState<string>('fecha');
+  const [sortField, setSortField] = useState<string>('createdAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const { data, isLoading } = trpc.crm.leads.list.useQuery({
     search: search || undefined,
-    status: estadoFilter !== 'todos' ? estadoFilter : undefined,
-    source: fuenteFilter !== 'todos' ? fuenteFilter : undefined,
-    tier: tierFilter !== 'todos' ? tierFilter : undefined,
+    status: statusFilter !== 'todos' ? (statusFilter as unknown as 'nuevo' | 'contactado' | 'calificado' | 'en_segimiento' | 'descartado' | 'convertido') : undefined,
+    source: sourceFilter !== 'todos' ? (sourceFilter as unknown as 'manual' | 'idealista' | 'fotocasa' | 'email' | 'whatsapp' | 'webhook' | 'phone' | 'referral' | 'web') : undefined,
+    tier: tierFilter !== 'todos' ? (tierFilter as unknown as 'hot' | 'warm' | 'cold') : undefined,
     page,
-    pageSize,
+    limit: pageSize,
+    sortBy: sortField,
+    sortOrder: sortDir,
   });
 
   const createLead = trpc.crm.leads.create.useMutation({
@@ -65,7 +67,7 @@ export default function CrmLeadsApp() {
 
   const filteredLeads: Lead[] = data?.items ?? [];
   const totalItems = data?.total ?? 0;
-  const totalPages = data?.totalPages ?? 1;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
 
   const handleSort = (field: string) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -122,7 +124,7 @@ export default function CrmLeadsApp() {
           {search && <button onClick={() => { setSearch(''); setPage(1); }}><X size={14} color="#6b7280" /></button>}
         </div>
 
-        <select value={estadoFilter} onChange={e => { setEstadoFilter(e.target.value); setPage(1); }}
+        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
           className="px-3 py-2 rounded-lg text-xs outline-none cursor-pointer"
           style={{ background: '#1a2744', color: '#e5e7eb', border: '1px solid rgba(255,255,255,0.08)', height: 40 }}>
           <option value="todos">Todos los estados</option>
@@ -134,7 +136,7 @@ export default function CrmLeadsApp() {
           <option value="perdido">Perdido</option>
         </select>
 
-        <select value={fuenteFilter} onChange={e => { setFuenteFilter(e.target.value); setPage(1); }}
+        <select value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1); }}
           className="px-3 py-2 rounded-lg text-xs outline-none cursor-pointer"
           style={{ background: '#1a2744', color: '#e5e7eb', border: '1px solid rgba(255,255,255,0.08)', height: 40 }}>
           <option value="todos">Todas las fuentes</option>
@@ -176,14 +178,14 @@ export default function CrmLeadsApp() {
               <thead>
                 <tr style={{ background: '#1a2744' }}>
                   {[
-                    { key: 'nombre', label: 'Nombre', w: '180px' },
+                    { key: 'name', label: 'Nombre', w: '180px' },
                     { key: 'email', label: 'Email', w: '200px' },
-                    { key: 'telefono', label: 'Telefono', w: '130px' },
-                    { key: 'estado', label: 'Estado', w: '100px' },
-                    { key: 'fuente', label: 'Fuente', w: '100px' },
+                    { key: 'phone', label: 'Telefono', w: '130px' },
+                    { key: 'status', label: 'Estado', w: '100px' },
+                    { key: 'source', label: 'Fuente', w: '100px' },
                     { key: 'tier', label: 'Tier', w: '80px' },
                     { key: 'score', label: 'Score', w: '70px' },
-                    { key: 'fecha', label: 'Fecha', w: '100px' },
+                    { key: 'createdAt', label: 'Fecha', w: '100px' },
                   ].map(col => (
                     <th key={col.key} onClick={() => handleSort(col.key)}
                       className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider cursor-pointer select-none"
@@ -206,35 +208,35 @@ export default function CrmLeadsApp() {
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
                             style={{ background: 'rgba(212,168,83,0.15)', color: '#d4a853' }}>
-                            {lead.nombre.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                            {(lead.name || '').split(' ').map(n => n[0]).join('').substring(0, 2)}
                           </div>
-                          <span className="text-sm font-medium text-white truncate" style={{ maxWidth: 140 }}>{lead.nombre}</span>
+                          <span className="text-sm font-medium text-white truncate" style={{ maxWidth: 140 }}>{lead.name || ''}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-sm truncate" style={{ color: '#d1d5db', maxWidth: 180 }}>{lead.email}</td>
-                      <td className="px-3 py-3 text-sm" style={{ color: '#d1d5db' }}>{lead.telefono}</td>
+                      <td className="px-3 py-3 text-sm truncate" style={{ color: '#d1d5db', maxWidth: 180 }}>{lead.email || ''}</td>
+                      <td className="px-3 py-3 text-sm" style={{ color: '#d1d5db' }}>{lead.phone || ''}</td>
                       <td className="px-3 py-3">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
-                          style={{ background: estadoColors[lead.estado]?.bg || '#1a2744', color: estadoColors[lead.estado]?.text || '#9ca3af' }}>
-                          {lead.estado}
+                          style={{ background: estadoColors[lead.status ?? 'nuevo']?.bg || '#1a2744', color: estadoColors[lead.status ?? 'nuevo']?.text || '#9ca3af' }}>
+                          {lead.status || ''}
                         </span>
                       </td>
                       <td className="px-3 py-3">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
-                          style={{ background: `${sourceColors[lead.fuente] || '#6b7280'}20`, color: sourceColors[lead.fuente] || '#9ca3af' }}>
-                          {lead.fuente}
+                          style={{ background: `${sourceColors[lead.source ?? 'manual'] || '#6b7280'}20`, color: sourceColors[lead.source ?? 'manual'] || '#9ca3af' }}>
+                          {lead.source || ''}
                         </span>
                       </td>
                       <td className="px-3 py-3">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
-                          style={{ background: tierColors[lead.tier]?.bg, color: tierColors[lead.tier]?.text }}>
-                          {lead.tier}
+                          style={{ background: tierColors[lead.tier ?? 'cold']?.bg, color: tierColors[lead.tier ?? 'cold']?.text }}>
+                          {lead.tier || ''}
                         </span>
                       </td>
                       <td className="px-3 py-3">
-                        <span className="text-sm font-medium" style={{ color: '#d4a853' }}>{lead.score}</span>
+                        <span className="text-sm font-medium" style={{ color: '#d4a853' }}>{lead.score ?? 0}</span>
                       </td>
-                      <td className="px-3 py-3 text-sm" style={{ color: '#d1d5db' }}>{lead.fecha}</td>
+                      <td className="px-3 py-3 text-sm" style={{ color: '#d1d5db' }}>{lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('es-ES') : ''}</td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={e => { e.stopPropagation(); openDetail(lead); }} className="p-1.5 rounded-md hover:bg-white/5" title="Ver"><Eye size={14} color="#9ca3af" /></button>
@@ -330,7 +332,7 @@ export default function CrmLeadsApp() {
               className="rounded-xl p-6 w-[480px] max-h-[80vh] overflow-auto" style={{ background: '#111d32', border: '1px solid rgba(255,255,255,0.06)' }}
               onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-semibold text-white mb-4">Nuevo Lead</h2>
-              <CreateLeadForm onSubmit={(data) => createLead.mutate(data)} onCancel={() => setShowCreate(false)} isPending={createLead.isPending} />
+              <CreateLeadForm onSubmit={(data) => createLead.mutate(data as Parameters<typeof createLead.mutate>[0])} onCancel={() => setShowCreate(false)} isPending={createLead.isPending} />
             </motion.div>
           </motion.div>
         )}
@@ -340,13 +342,13 @@ export default function CrmLeadsApp() {
 }
 
 /* ─── Create Lead Form ─── */
-function CreateLeadForm({ onSubmit, onCancel, isPending }: { onSubmit: (data: { nombre: string; email: string; telefono: string; zona?: string; tipoOperacion?: string; notas?: string }) => void; onCancel: () => void; isPending: boolean }) {
-  const [form, setForm] = useState({ nombre: '', email: '', telefono: '', zona: '', tipoOperacion: 'compra', notas: '' });
+function CreateLeadForm({ onSubmit, onCancel, isPending }: { onSubmit: (data: { name: string; email: string; phone: string; zone?: string; operationType?: string; notes?: string }) => void; onCancel: () => void; isPending: boolean }) {
+  const [form, setForm] = useState({ name: '', email: '', phone: '', zone: '', operationType: 'compra', notes: '' });
   return (
     <div className="space-y-4">
       <div>
         <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Nombre *</label>
-        <input type="text" value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+        <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
           className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }} />
       </div>
       <div>
@@ -356,17 +358,17 @@ function CreateLeadForm({ onSubmit, onCancel, isPending }: { onSubmit: (data: { 
       </div>
       <div>
         <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Telefono *</label>
-        <input type="tel" value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))}
+        <input type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
           className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }} />
       </div>
       <div>
         <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Zona</label>
-        <input type="text" value={form.zona} onChange={e => setForm(f => ({ ...f, zona: e.target.value }))}
+        <input type="text" value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
           className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }} />
       </div>
       <div>
         <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Tipo Operacion</label>
-        <select value={form.tipoOperacion} onChange={e => setForm(f => ({ ...f, tipoOperacion: e.target.value }))}
+        <select value={form.operationType} onChange={e => setForm(f => ({ ...f, operationType: e.target.value }))}
           className="w-full px-3 py-2 rounded-lg text-sm outline-none"
           style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }}>
           <option value="compra">Compra</option>
@@ -376,12 +378,12 @@ function CreateLeadForm({ onSubmit, onCancel, isPending }: { onSubmit: (data: { 
       </div>
       <div>
         <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Notas</label>
-        <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} rows={3}
+        <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3}
           className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none" style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }} />
       </div>
       <div className="flex items-center justify-end gap-3 pt-2">
         <button onClick={onCancel} className="px-4 py-2 rounded-lg text-xs font-medium" style={{ color: '#9ca3af' }}>Cancelar</button>
-        <button onClick={() => onSubmit(form)} disabled={isPending || !form.nombre || !form.email || !form.telefono}
+        <button onClick={() => onSubmit(form)} disabled={isPending || !form.name || !form.email || !form.phone}
           className="px-4 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
           style={{ background: '#d4a853', color: '#0a1628' }}>{isPending ? 'Creando...' : 'Crear Lead'}</button>
       </div>
@@ -391,6 +393,8 @@ function CreateLeadForm({ onSubmit, onCancel, isPending }: { onSubmit: (data: { 
 
 /* ─── Lead Detail Content ─── */
 function LeadDetailContent({ lead }: { lead: Lead }) {
+  const interacciones: { id: number; tipo: string; asunto: string; contenido: string; fecha: string; direccion: string }[] = [];
+  const propiedadesVinculadas: { id: number; ref: string; relacion: string; titulo: string; direccion: string }[] = [];
   return (
     <div className="px-6 py-6 space-y-6">
       {/* Main Info */}
@@ -399,20 +403,20 @@ function LeadDetailContent({ lead }: { lead: Lead }) {
         <div className="flex items-start gap-4">
           <div className="w-16 h-16 rounded-full flex items-center justify-center text-lg font-bold shrink-0"
             style={{ background: 'rgba(212,168,83,0.15)', color: '#d4a853' }}>
-            {lead.nombre.split(' ').map(n => n[0]).join('').substring(0, 2)}
+            {(lead.name || '').split(' ').map(n => n[0]).join('').substring(0, 2)}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-semibold text-white">{lead.nombre}</h2>
+            <h2 className="text-lg font-semibold text-white">{lead.name || ''}</h2>
             <div className="flex items-center gap-2 mt-1">
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
-                style={{ background: estadoColors[lead.estado]?.bg, color: estadoColors[lead.estado]?.text }}>{lead.estado}</span>
+                style={{ background: estadoColors[lead.status ?? 'nuevo']?.bg, color: estadoColors[lead.status ?? 'nuevo']?.text }}>{lead.status || ''}</span>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
-                style={{ background: tierColors[lead.tier]?.bg, color: tierColors[lead.tier]?.text }}>{lead.tier}</span>
+                style={{ background: tierColors[lead.tier ?? 'cold']?.bg, color: tierColors[lead.tier ?? 'cold']?.text }}>{lead.tier || ''}</span>
             </div>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-12 h-12 rounded-full flex flex-col items-center justify-center" style={{ border: '2px solid #d4a853' }}>
-              <span className="text-sm font-bold" style={{ color: '#d4a853' }}>{lead.score}</span>
+              <span className="text-sm font-bold" style={{ color: '#d4a853' }}>{lead.score ?? 0}</span>
             </div>
           </div>
         </div>
@@ -420,34 +424,34 @@ function LeadDetailContent({ lead }: { lead: Lead }) {
         <div className="grid grid-cols-2 gap-3 mt-5">
           <div className="flex items-center gap-2">
             <Phone size={14} color="#6b7280" />
-            <span className="text-sm" style={{ color: '#d1d5db' }}>{lead.telefono}</span>
+            <span className="text-sm" style={{ color: '#d1d5db' }}>{lead.phone || ''}</span>
           </div>
           <div className="flex items-center gap-2">
             <Mail size={14} color="#6b7280" />
-            <span className="text-sm truncate" style={{ color: '#d1d5db' }}>{lead.email}</span>
+            <span className="text-sm truncate" style={{ color: '#d1d5db' }}>{lead.email || ''}</span>
           </div>
           <div className="flex items-center gap-2">
             <MapPin size={14} color="#6b7280" />
-            <span className="text-sm" style={{ color: '#d1d5db' }}>{lead.zona}</span>
+            <span className="text-sm" style={{ color: '#d1d5db' }}>{lead.zone || ''}</span>
           </div>
           <div className="flex items-center gap-2">
             <Calendar size={14} color="#6b7280" />
-            <span className="text-sm" style={{ color: '#d1d5db' }}>{lead.fecha}</span>
+            <span className="text-sm" style={{ color: '#d1d5db' }}>{lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('es-ES') : ''}</span>
           </div>
           <div className="flex items-center gap-2">
             <Tag size={14} color="#6b7280" />
-            <span className="text-sm capitalize" style={{ color: '#d1d5db' }}>{lead.tipoOperacion} - {lead.persona}</span>
+            <span className="text-sm capitalize" style={{ color: '#d1d5db' }}>{lead.operationType || ''} - {lead.persona || ''}</span>
           </div>
           <div className="flex items-center gap-2">
             <Star size={14} color="#6b7280" />
-            <span className="text-sm capitalize" style={{ color: '#d1d5db' }}>{lead.fuente}</span>
+            <span className="text-sm capitalize" style={{ color: '#d1d5db' }}>{lead.source || ''}</span>
           </div>
         </div>
 
-        {lead.notas && (
+        {lead.notes && (
           <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
             <p className="text-xs font-medium mb-1.5" style={{ color: '#6b7280' }}>Notas</p>
-            <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>{lead.notas}</p>
+            <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>{lead.notes || ''}</p>
           </div>
         )}
       </motion.div>
@@ -463,15 +467,15 @@ function LeadDetailContent({ lead }: { lead: Lead }) {
           <div className="text-center">
             <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#6b7280' }}>Tier</p>
             <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold capitalize"
-              style={{ background: tierColors[lead.tier]?.bg, color: tierColors[lead.tier]?.text }}>{lead.tier}</span>
+              style={{ background: tierColors[lead.tier ?? 'cold']?.bg, color: tierColors[lead.tier ?? 'cold']?.text }}>{lead.tier || ''}</span>
           </div>
           <div className="text-center">
             <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#6b7280' }}>Persona</p>
-            <span className="text-sm font-medium text-white">{lead.persona}</span>
+            <span className="text-sm font-medium text-white">{lead.persona || ''}</span>
           </div>
           <div className="text-center">
             <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#6b7280' }}>Score</p>
-            <span className="text-sm font-medium" style={{ color: '#d4a853' }}>{lead.score}/100</span>
+            <span className="text-sm font-medium" style={{ color: '#d4a853' }}>{lead.score ?? 0}/100</span>
           </div>
         </div>
       </motion.div>
@@ -482,10 +486,10 @@ function LeadDetailContent({ lead }: { lead: Lead }) {
         <div className="flex items-center gap-2 mb-4">
           <MessageSquare size={16} color="#d4a853" />
           <h3 className="text-sm font-semibold text-white">Interacciones</h3>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full ml-1" style={{ background: 'rgba(212,168,83,0.15)', color: '#d4a853' }}>{lead.interacciones?.length ?? 0}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full ml-1" style={{ background: 'rgba(212,168,83,0.15)', color: '#d4a853' }}>{interacciones.length}</span>
         </div>
         <div className="space-y-3">
-          {lead.interacciones?.map((inter) => (
+          {interacciones.map((inter) => (
             <div key={inter.id} className="flex items-start gap-3 p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)' }}>
               <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: `${sourceColors[inter.tipo] || '#6b7280'}20` }}>
                 <MessageSquare size={12} color={sourceColors[inter.tipo] || '#6b7280'} />
@@ -509,10 +513,10 @@ function LeadDetailContent({ lead }: { lead: Lead }) {
         <div className="flex items-center gap-2 mb-4">
           <Building2 size={16} color="#d4a853" />
           <h3 className="text-sm font-semibold text-white">Propiedades Vinculadas</h3>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full ml-1" style={{ background: 'rgba(212,168,83,0.15)', color: '#d4a853' }}>{lead.propiedadesVinculadas?.length ?? 0}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full ml-1" style={{ background: 'rgba(212,168,83,0.15)', color: '#d4a853' }}>{propiedadesVinculadas.length}</span>
         </div>
         <div className="space-y-3">
-          {lead.propiedadesVinculadas?.map((prop) => (
+          {propiedadesVinculadas.map((prop) => (
             <div key={prop.id} className="flex items-start gap-3 p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)' }}>
               <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(59,130,246,0.15)' }}>
                 <Building2 size={12} color="#3b82f6" />

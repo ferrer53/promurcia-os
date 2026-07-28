@@ -3,6 +3,7 @@ import { eq, like, or, desc, sql } from "drizzle-orm";
 import { createTRPCRouter, adminProcedure } from "../lib/trpc";
 import { db } from "../../db/connection";
 import { users } from "../../db/schema";
+import { nanoid } from "nanoid";
 
 const roleEnum = z.enum(["superCEO", "admin", "operaciones", "comercial", "solo_lectura", "agente"]);
 const statusEnum = z.enum(["active", "inactive", "suspended"]);
@@ -61,7 +62,7 @@ export const usersRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
-      const result = await db.insert(users).values(input).returning();
+      const result = await db.insert(users).values({ ...input, unionId: nanoid() }).returning();
       return result[0];
     }),
 

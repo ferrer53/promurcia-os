@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
 
+const easeOutExpo = [0.16, 1, 0.3, 1] as [number, number, number, number];
+
 const CATEGORIES = ['Procedimientos', 'Legal', 'Marketing', 'Finanzas', 'Tecnologia'];
 
 const CAT_COLORS: Record<string, string> = {
@@ -39,7 +41,7 @@ export default function CRMKnowledge() {
     search: searchQuery || undefined,
     category: categoryFilter !== 'todas' ? categoryFilter : undefined,
     page: 1,
-    pageSize: 100,
+    limit: 100,
   });
 
   const createArticle = trpc.crm.knowledge.create.useMutation({
@@ -61,7 +63,7 @@ export default function CRMKnowledge() {
 
   const articlesByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    articles.forEach(a => { map[a.category] = (map[a.category] || 0) + 1; });
+    articles.forEach(a => { const cat = a.category || 'Otro'; map[cat] = (map[cat] || 0) + 1; });
     return CATEGORIES.map(cat => ({ name: cat, count: map[cat] || 0, color: CAT_COLORS[cat] }));
   }, [articles]);
 
@@ -165,21 +167,21 @@ export default function CRMKnowledge() {
                     className="rounded-xl p-4 flex items-start gap-4 cursor-pointer transition-all hover:bg-[rgba(212,168,83,0.02)]"
                     style={{ background: '#111d32', border: '1px solid rgba(255,255,255,0.04)' }}
                     onClick={() => setSelectedArticle(article)}>
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${CAT_COLORS[article.category] || '#6b7280'}20` }}>
-                      <FileText size={18} color={CAT_COLORS[article.category] || '#6b7280'} />
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${CAT_COLORS[article.category || 'Otro'] || '#6b7280'}20` }}>
+                      <FileText size={18} color={CAT_COLORS[article.category || 'Otro'] || '#6b7280'} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-sm font-medium text-white">{article.title}</h3>
-                        <Badge className="text-[9px] h-4 px-1" style={{ background: `${CAT_COLORS[article.category]}20`, color: CAT_COLORS[article.category], border: 'none' }}>
-                          {article.category}
+                        <Badge className="text-[9px] h-4 px-1" style={{ background: `${CAT_COLORS[article.category || 'Otro']}20`, color: CAT_COLORS[article.category || 'Otro'], border: 'none' }}>
+                          {article.category || 'Otro'}
                         </Badge>
                       </div>
-                      <p className="text-xs mb-1 truncate" style={{ color: '#6b7280' }}>{article.summary}</p>
+                      <p className="text-xs mb-1 truncate" style={{ color: '#6b7280' }}>{article.content?.substring(0, 120).replace(/[#*_]/g, '') || 'Sin contenido'}</p>
                       <div className="flex items-center gap-3">
-                        <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><User size={10} /> {article.author}</span>
-                        <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><Clock size={10} /> {article.date}</span>
-                        <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><Eye size={10} /> {article.views}</span>
+                        <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><User size={10} /> {article.slug || 'Equipo'}</span>
+                        <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><Clock size={10} /> {article.createdAt ? new Date(article.createdAt).toLocaleDateString('es-ES') : ''}</span>
+                        <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><Eye size={10} /> {article.isPublic ? 'Publico' : 'Privado'}</span>
                       </div>
                     </div>
                     {isAdmin && (
@@ -226,16 +228,15 @@ export default function CRMKnowledge() {
                 )}
               </div>
               <div className="px-6 py-6 space-y-4">
-                <Badge className="text-[10px]" style={{ background: `${CAT_COLORS[selectedArticle.category]}20`, color: CAT_COLORS[selectedArticle.category], border: 'none' }}>
-                  {selectedArticle.category}
+                <Badge className="text-[10px]" style={{ background: `${CAT_COLORS[selectedArticle.category || 'Otro']}20`, color: CAT_COLORS[selectedArticle.category || 'Otro'], border: 'none' }}>
+                  {selectedArticle.category || 'Otro'}
                 </Badge>
                 <h2 className="text-xl font-semibold text-white">{selectedArticle.title}</h2>
                 <div className="flex items-center gap-4">
-                  <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><User size={10} /> {selectedArticle.author}</span>
-                  <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><Clock size={10} /> {selectedArticle.date}</span>
-                  <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><Eye size={10} /> {selectedArticle.views} vistas</span>
+                  <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><User size={10} /> {selectedArticle.slug || 'Equipo'}</span>
+                  <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><Clock size={10} /> {selectedArticle.createdAt ? new Date(selectedArticle.createdAt).toLocaleDateString('es-ES') : ''}</span>
+                  <span className="text-[10px] flex items-center gap-1" style={{ color: '#6b7280' }}><Eye size={10} /> {selectedArticle.isPublic ? 'Publico' : 'Privado'}</span>
                 </div>
-                <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>{selectedArticle.summary}</p>
                 {selectedArticle.content && (
                   <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
                     <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#d1d5db' }}>{selectedArticle.content}</p>
@@ -277,13 +278,22 @@ export default function CRMKnowledge() {
   );
 }
 
+function slugify(text: string) {
+  return text
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'articulo';
+}
+
 /* ─── Article Form ─── */
 function ArticleForm({ initial, onSubmit, onCancel, isPending }: { initial?: any; onSubmit: (data: any) => void; onCancel: () => void; isPending: boolean }) {
   const [form, setForm] = useState({
     title: initial?.title ?? '',
     category: initial?.category ?? 'Procedimientos',
-    summary: initial?.summary ?? '',
     content: initial?.content ?? '',
+    tags: initial?.tags ?? '',
   });
   return (
     <div className="space-y-4">
@@ -300,18 +310,18 @@ function ArticleForm({ initial, onSubmit, onCancel, isPending }: { initial?: any
         </select>
       </div>
       <div>
-        <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Resumen</label>
-        <textarea value={form.summary} onChange={e => setForm(f => ({ ...f, summary: e.target.value }))} rows={3}
-          className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none" style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }} />
+        <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Etiquetas (separadas por coma)</label>
+        <input type="text" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
+          className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }} />
       </div>
       <div>
-        <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Contenido</label>
-        <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={6}
+        <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Contenido *</label>
+        <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={8}
           className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none font-mono" style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }} />
       </div>
       <div className="flex items-center justify-end gap-3 pt-2">
         <button onClick={onCancel} className="px-4 py-2 rounded-lg text-xs font-medium" style={{ color: '#9ca3af' }}>Cancelar</button>
-        <button onClick={() => onSubmit(form)} disabled={isPending || !form.title}
+        <button onClick={() => onSubmit({ ...form, slug: initial?.slug || slugify(form.title), isPublic: true })} disabled={isPending || !form.title || !form.content}
           className="px-4 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
           style={{ background: '#d4a853', color: '#0a1628' }}>{isPending ? 'Guardando...' : 'Guardar'}</button>
       </div>

@@ -14,8 +14,12 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        const token = typeof window !== "undefined" ? localStorage.getItem("promurcia_token") : null;
+        const headers = new Headers(init?.headers);
+        if (token) headers.set("authorization", `Bearer ${token}`);
         return globalThis.fetch(input, {
           ...(init ?? {}),
+          headers,
           credentials: "include",
         });
       },

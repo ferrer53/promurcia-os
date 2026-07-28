@@ -73,6 +73,7 @@ interface OSState {
   markNotificationRead: (id: string) => void;
   toggleNotificationPanel: () => void;
   minimizeAll: () => void;
+  logout: () => void;
 }
 
 const BASE_Z_INDEX = 100;

@@ -97,7 +97,7 @@ export function Desktop() {
       </div>
 
       {/* Taskbar */}
-      <Taskbar userName={user?.name} userRole={user?.role ? ROLE_LABELS[user.role] : undefined} />
+      <Taskbar userName={user?.name ?? undefined} userRole={user?.role ? ROLE_LABELS[user.role] : undefined} />
 
       {/* App Launcher Overlay */}
       {showLauncher && <AppLauncher />}

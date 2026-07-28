@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import OpenAI from "openai";
+import { runImportPipeline } from "./processors/import-pipeline";
+import { db } from "../db/connection";
+import { documents } from "../db/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "",
@@ -120,14 +123,14 @@ export const driveRouter = createRouter({
         });
 
         const files = (res.data.files || []).map((f) => ({
-          id: f.id,
-          name: f.name,
-          mimeType: f.mimeType,
+          id: f.id || "",
+          name: f.name || "",
+          mimeType: f.mimeType || "",
           size: parseInt(f.size || "0"),
-          modifiedTime: f.modifiedTime,
-          createdTime: f.createdTime,
-          webViewLink: f.webViewLink,
-          thumbnailLink: f.thumbnailLink,
+          modifiedTime: f.modifiedTime || "",
+          createdTime: f.createdTime || "",
+          webViewLink: f.webViewLink || "",
+          thumbnailLink: f.thumbnailLink || "",
         }));
 
         return {
@@ -171,15 +174,32 @@ export const driveRouter = createRouter({
           };
         }
 
-        // For PDFs and images, return metadata (can't extract text without OCR)
-        if (input.mimeType?.includes("pdf") || input.mimeType?.startsWith("image/")) {
+        // For PDFs, extract text with pdf-parse
+        if (input.mimeType?.includes("pdf")) {
+          const download = await drive.files.get(
+            { fileId: input.fileId, alt: "media" },
+            { responseType: "arraybuffer" }
+          );
+          const { default: PDFParse } = await import("pdf-parse");
+          const parsed = await PDFParse(Buffer.from(download.data as ArrayBuffer));
+          return {
+            success: true,
+            content: parsed.text.substring(0, 15000),
+            isText: true,
+            pages: parsed.numpages,
+            elapsedMs: Date.now() - startTime,
+          };
+        }
+
+        // For images, return metadata (OCR not enabled)
+        if (input.mimeType?.startsWith("image/")) {
           const res = await drive.files.get({
             fileId: input.fileId,
             fields: "id, name, mimeType, size, description, webViewLink",
           });
           return {
             success: true,
-            content: `[${input.mimeType?.includes("pdf") ? "PDF" : "IMAGEN"}: ${res.data.name}]\nEste archivo requiere procesamiento OCR adicional.\nEnlace: ${res.data.webViewLink || ""}`,
+            content: `[IMAGEN: ${res.data.name}]\nEste archivo requiere procesamiento OCR adicional.\nEnlace: ${res.data.webViewLink || ""}`,
             isText: false,
             mimeType: input.mimeType,
             fileInfo: res.data,
@@ -384,6 +404,102 @@ export const driveRouter = createRouter({
         }
       }
 
-      return { results, totalFiles: results.length };
+      return { success: true, results, totalFiles: results.length };
+    }),
+
+  // Import selected Drive files into the CRM database
+  importFiles: publicQuery
+    .input(
+      z.object({
+        fileIds: z.array(z.string()).min(1),
+        mimeTypes: z.array(z.string()),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const drive = await getDriveClient();
+      const results: Array<{
+        fileId: string;
+        fileName?: string;
+        status: string;
+        summary?: any;
+        error?: string;
+      }> = [];
+
+      for (let i = 0; i < input.fileIds.length; i++) {
+        const fileId = input.fileIds[i];
+        const mimeType = input.mimeTypes[i] || "";
+        const stepStart = Date.now();
+
+        try {
+          const fileInfo = await drive.files.get({
+            fileId,
+            fields: "id, name, mimeType, size",
+          });
+          const fileName = fileInfo.data.name || "unknown";
+
+          let fileType: "csv" | "xlsx" | "pdf" | null = null;
+          if (mimeType.includes("pdf")) fileType = "pdf";
+          else if (mimeType.includes("csv") || mimeType.includes("text/plain") || mimeType.includes("application/json")) fileType = "csv";
+          else if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("officedocument.spreadsheet")) fileType = "xlsx";
+
+          if (!fileType) {
+            results.push({ fileId, fileName, status: "skipped", error: "Formato no soportado para importación" });
+            continue;
+          }
+
+          let buffer: Buffer;
+          if (mimeType.includes("google-apps.spreadsheet")) {
+            const exportRes = await drive.files.export(
+              { fileId, mimeType: "text/csv" },
+              { responseType: "text" }
+            );
+            buffer = Buffer.from(String(exportRes.data), "utf8");
+          } else {
+            const download = await drive.files.get(
+              { fileId, alt: "media" },
+              { responseType: "arraybuffer" }
+            );
+            buffer = Buffer.from(download.data as ArrayBuffer);
+          }
+
+          const pipelineResult = await runImportPipeline(
+            buffer,
+            fileType,
+            { skipDuplicates: true, autoLink: true, defaultSource: "drive", defaultStatus: "nuevo" },
+            fileName
+          );
+
+          // Keep trace of imported document
+          await db.insert(documents).values({
+            name: fileName,
+            type: "other",
+            mimeType,
+            fileSize: buffer.length,
+            filePath: `drive://${fileId}`,
+          });
+
+          results.push({
+            fileId,
+            fileName,
+            status: "imported",
+            summary: {
+              jobId: pipelineResult.jobId,
+              totalRows: pipelineResult.totalRows,
+              imported: pipelineResult.imported,
+              duplicates: pipelineResult.duplicates,
+              linked: pipelineResult.linked,
+              errors: pipelineResult.errors,
+            },
+          });
+        } catch (error: any) {
+          results.push({
+            fileId,
+            status: "error",
+            error: error.message || "Error al importar archivo de Drive",
+          });
+        }
+      }
+
+      return { success: true, results, totalFiles: results.length };
     }),
 });

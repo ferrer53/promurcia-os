@@ -17,6 +17,7 @@ import {
   cerebroSessions,
   cerebroMessages,
   users,
+  authCredentials,
 } from "./schema";
 
 // ── Leads ────────────────────────────────────
@@ -65,6 +66,10 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
     fields: [tasks.propertyId],
     references: [properties.id],
   }),
+  assignedUser: one(users, {
+    fields: [tasks.assignedTo],
+    references: [users.id],
+  }),
 }));
 
 // ── Operations ───────────────────────────────
@@ -72,6 +77,14 @@ export const operationsRelations = relations(operations, ({ many, one }) => ({
   lead: one(leads, {
     fields: [operations.leadId],
     references: [leads.id],
+  }),
+  property: one(properties, {
+    fields: [operations.propertyId],
+    references: [properties.id],
+  }),
+  agent: one(users, {
+    fields: [operations.agentId],
+    references: [users.id],
   }),
   timeline: many(operationTimeline),
   checklist: many(operationChecklist),
@@ -88,4 +101,12 @@ export const interactionsRelations = relations(interactions, ({ one }) => ({
 // ── Cerebro ──────────────────────────────────
 export const cerebroSessionsRelations = relations(cerebroSessions, ({ many }) => ({
   messages: many(cerebroMessages),
+}));
+
+// ── Users ────────────────────────────────────
+export const usersRelations = relations(users, ({ one }) => ({
+  authCredential: one(authCredentials, {
+    fields: [users.id],
+    references: [authCredentials.userId],
+  }),
 }));

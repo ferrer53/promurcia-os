@@ -103,6 +103,12 @@ interface PipelineInput {
   type?: 'venta' | 'alquiler';
 }
 
+interface PipelineStage {
+  name: string;
+  count: number;
+  value: number;
+}
+
 interface CreateLeadInput {
   nombre: string;
   email: string;
@@ -346,6 +352,11 @@ type InfiniteQueryProcedure<TInput, TOutput> = {
 // ─── Router Shape ───────────────────────────────────────────────────
 
 export interface AppRouter {
+  auth: {
+    login: MutationProcedure<{ username: string; password: string }, { success: boolean; user?: UserData; token?: string; error?: string }>;
+    me: QueryProcedure<Record<string, never>, UserData>;
+    logout: MutationProcedure<Record<string, never>, { success: boolean }>;
+  };
   crm: {
     leads: {
       list: QueryProcedure<ListInput, PaginatedResponse<Lead>>;

@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: NODE_ENV=development npm install && npm run build
-    startCommand: npm start
+    startCommand: npx drizzle-kit push --force && npx tsx scripts/seed-admin.ts && npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -12,6 +12,14 @@ services:
         value: file:./promurcia.db
       - key: OPENAI_API_KEY
         sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        value: admin@promurcia.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: Administrador Promurcia
       - key: GOOGLE_SERVICE_ACCOUNT_KEY
         sync: false
       - key: GOOGLE_CLIENT_EMAIL

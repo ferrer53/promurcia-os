@@ -186,7 +186,7 @@ export function parseCSV(buffer: Buffer): CSVParseResult {
     bom: encoding === "utf-8-bom",
     relax_quotes: true,
     relax_column_count: true,
-  });
+  }) as Array<Record<string, unknown>>;
 
   if (!Array.isArray(records) || records.length === 0) {
     return {
@@ -263,7 +263,7 @@ export function getCSVPreview(buffer: Buffer, maxRows = 5): {
     bom: encoding === "utf-8-bom",
     relax_quotes: true,
     relax_column_count: true,
-  });
+  }) as Array<Record<string, unknown>>;
 
   if (!Array.isArray(records) || records.length === 0) {
     return { headers: [], preview: [], totalRows: 0, delimiter, encoding };

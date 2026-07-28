@@ -17,7 +17,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@contracts/*": ["./contracts/*"],
-      "@db/*": ["./db/*"]
+      "@db/*": ["./db/*"],
+      "pdf-parse": ["./api/types/pdf-parse.d.ts"]
     }
   },
   "include": ["api", "contracts", "db"]

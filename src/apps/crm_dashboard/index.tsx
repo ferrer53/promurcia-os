@@ -112,23 +112,23 @@ function SkeletonCard() {
 }
 
 export default function CrmDashboardApp() {
-  const { data: kpis, isLoading: kpiLoading } = trpc.crm.dashboard.getKPIs.useQuery({});
-  const { data: leadStats, isLoading: statsLoading } = trpc.crm.dashboard.getLeadStats.useQuery({});
-  const { data: pipelineStats, isLoading: pipelineLoading } = trpc.crm.dashboard.getPipelineStats.useQuery({});
-  const { data: recentActivity, isLoading: activityLoading } = trpc.crm.dashboard.getRecentActivity.useQuery({ limit: 10 });
-  const { data: alerts, isLoading: alertsLoading } = trpc.crm.dashboard.getAlerts.useQuery({ limit: 5 });
-  const { data: recentLeadsData } = trpc.crm.leads.list.useQuery({ page: 1, pageSize: 5 });
+  const { data: kpis, isLoading: kpiLoading } = trpc.crm.dashboard.getKPIs.useQuery();
+  const { data: leadStats, isLoading: statsLoading } = trpc.crm.dashboard.getLeadStats.useQuery();
+  const { data: pipelineStats, isLoading: pipelineLoading } = trpc.crm.dashboard.getPipelineStats.useQuery();
+  const { data: recentActivity, isLoading: activityLoading } = trpc.crm.dashboard.getRecentActivity.useQuery();
+  const { data: alerts, isLoading: alertsLoading } = trpc.crm.dashboard.getAlerts.useQuery();
+  const { data: recentLeadsData } = trpc.crm.leads.list.useQuery({ page: 1, limit: 5 });
 
   const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   const kpiItems = useMemo(() => {
     if (!kpis) return [];
     return [
-      { label: 'Total Leads', value: String(kpis.totalLeads), change: kpis.totalLeadsChange, trend: 'up' as const, icon: Users, color: '#d4a853' },
-      { label: 'Leads Nuevos (Hoy)', value: String(kpis.leadsNuevosHoy), change: kpis.leadsNuevosChange, trend: 'up' as const, icon: UserPlus, color: '#22c55e' },
-      { label: 'Propiedades Activas', value: String(kpis.propiedadesActivas), change: kpis.propiedadesChange, trend: 'up' as const, icon: Building2, color: '#3b82f6' },
-      { label: 'Operaciones Activas', value: String(kpis.operacionesActivas), change: kpis.operacionesChange, trend: 'up' as const, icon: GitBranch, color: '#8b5cf6' },
-      { label: 'Tasa Conversion', value: `${kpis.tasaConversion}%`, change: kpis.tasaConversionChange, trend: 'up' as const, icon: TrendingUp, color: '#22c55e' },
+      { label: 'Total Leads', value: String(kpis.totalLeads), change: kpis.totalLeadsChange ?? 0, trend: 'up' as const, icon: Users, color: '#d4a853' },
+      { label: 'Leads Nuevos (Hoy)', value: String(kpis.leadsNuevosHoy ?? 0), change: kpis.leadsNuevosChange ?? 0, trend: 'up' as const, icon: UserPlus, color: '#22c55e' },
+      { label: 'Propiedades Activas', value: String(kpis.propiedadesActivas ?? 0), change: kpis.propiedadesChange ?? 0, trend: 'up' as const, icon: Building2, color: '#3b82f6' },
+      { label: 'Operaciones Activas', value: String(kpis.operacionesActivas ?? 0), change: kpis.operacionesChange ?? 0, trend: 'up' as const, icon: GitBranch, color: '#8b5cf6' },
+      { label: 'Tasa Conversion', value: `${kpis.tasaConversion ?? 0}%`, change: kpis.tasaConversionChange ?? 0, trend: 'up' as const, icon: TrendingUp, color: '#22c55e' },
     ];
   }, [kpis]);
 
@@ -136,8 +136,8 @@ export default function CrmDashboardApp() {
   const sourceData = leadStats?.sourceData ?? [];
   const tierDistribution = leadStats?.tierDistribution ?? { hot: { count: 0, percentage: 0 }, warm: { count: 0, percentage: 0 }, cold: { count: 0, percentage: 0 } };
   const pipelineStages = pipelineStats?.stages ?? [];
-  const activityData = recentActivity ?? [];
-  const alertsData = alerts ?? [];
+  const activityData = recentActivity?.activity ?? [];
+  const alertsData = alerts?.items ?? [];
   const recentLeads = recentLeadsData?.items ?? [];
 
   const activityIcons: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
@@ -234,14 +234,14 @@ export default function CrmDashboardApp() {
                   <div key={lead.id} className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
                       style={{ background: 'rgba(212,168,83,0.15)', color: '#d4a853' }}>
-                      {lead.nombre.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                      {(lead.name || '').split(' ').map(n => n[0]).join('').substring(0, 2)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-white truncate">{lead.nombre}</p>
-                      <p className="text-[10px]" style={{ color: '#6b7280' }}>{lead.telefono}</p>
+                      <p className="text-xs font-medium text-white truncate">{lead.name}</p>
+                      <p className="text-[10px]" style={{ color: '#6b7280' }}>{lead.phone}</p>
                     </div>
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full capitalize"
-                      style={{ background: tierColors[lead.tier]?.bg, color: tierColors[lead.tier]?.text }}>{lead.tier}</span>
+                      style={{ background: tierColors[lead.tier || 'cold']?.bg, color: tierColors[lead.tier || 'cold']?.text }}>{lead.tier || 'cold'}</span>
                   </div>
                 ))}
                 {recentLeads.length === 0 && (
@@ -255,7 +255,7 @@ export default function CrmDashboardApp() {
               transition={{ delay: 0.55, duration: 0.4, ease: easeOutExpo }}
               className="rounded-xl p-5" style={{ background: '#111d32', border: '1px solid rgba(255,255,255,0.04)' }}>
               <h3 className="text-sm font-semibold text-white mb-1">Pipeline</h3>
-              <p className="text-[10px] mb-4" style={{ color: '#6b7280' }}>{pipelineStats?.stages.reduce((s, st) => s + st.count, 0) ?? 0} operaciones en curso</p>
+              <p className="text-[10px] mb-4" style={{ color: '#6b7280' }}>{pipelineStages.reduce((s, st) => s + st.count, 0)} operaciones en curso</p>
               <PipelineBar stages={pipelineStages} />
             </motion.div>
 
@@ -288,7 +288,7 @@ export default function CrmDashboardApp() {
                     Array.from({ length: 3 }).map((_, i) => (
                       <div key={i} className="w-full h-8 rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
                     ))
-                  ) : alertsData.slice(0, 4).map(alert => (
+                  ) : alertsData.slice(0, 4).map((alert: { id: number; priority: string; text: string; due: string }) => (
                     <div key={alert.id} className="flex items-start gap-2 p-2 rounded-lg"
                       style={{ background: alert.priority === 'alta' ? 'rgba(212,168,83,0.05)' : 'transparent', borderLeft: alert.priority === 'alta' ? '2px solid #d4a853' : '2px solid transparent' }}>
                       <AlertTriangle size={12} className="shrink-0 mt-0.5"
