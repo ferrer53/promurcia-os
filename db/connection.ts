@@ -1,9 +1,8 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Client } from "pg";
 import * as schema from "./schema";
 import * as relations from "./relations";
 
-const sqlite = new Database("promurcia.db");
-sqlite.pragma("journal_mode = WAL");
-
-export const db = drizzle(sqlite, { schema: { ...schema, ...relations } });
+const client = new Client({ connectionString: process.env.DATABASE_URL });
+await client.connect();
+export const db = drizzle(client, { schema: { ...schema, ...relations } });

@@ -1,200 +1,203 @@
 import {
-  sqliteTable,
-  text,
+  pgTable,
+  serial,
   integer,
+  text,
   real,
-} from "drizzle-orm/sqlite-core";
+  boolean,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // ═══════════════════════════════════════════════════════════
 //  CORE TABLES (already in DB)
 // ═══════════════════════════════════════════════════════════
 
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  unionId: text("unionId").notNull().default(sql`(lower(hex(randomblob(16))))`).unique(),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  unionId: text("unionId").notNull().default(sql`lower(gen_random_uuid()::text)`).unique(),
   name: text("name"),
   email: text("email"),
   avatar: text("avatar"),
-  role: text("role", ["user", "admin", "superCEO", "operaciones", "comercial", "agente", "solo_lectura"]).default("comercial").notNull(),
-  status: text("status", ["active", "inactive", "suspended"]).default("active"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  role: text("role", { enum: ["user", "admin", "superCEO", "operaciones", "comercial", "agente", "solo_lectura"] }).default("comercial").notNull(),
+  status: text("status", { enum: ["active", "inactive", "suspended"] }).default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-export const authCredentials = sqliteTable("auth_credentials", {
+export const authCredentials = pgTable("auth_credentials", {
   userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
   passwordHash: text("password_hash").notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type AuthCredential = typeof authCredentials.$inferSelect;
 export type InsertAuthCredential = typeof authCredentials.$inferInsert;
 
-export const alerts = sqliteTable("alerts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  type: text("type", ["lead", "property", "task", "system", "offer", "reservation"]).default("system").notNull(),
-  severity: text("severity", ["info", "warning", "critical"]).default("info").notNull(),
+export const alerts = pgTable("alerts", {
+  id: serial("id").primaryKey(),
+  type: text("type", { enum: ["lead", "property", "task", "system", "offer", "reservation"] }).default("system").notNull(),
+  severity: text("severity", { enum: ["info", "warning", "critical"] }).default("info").notNull(),
   title: text("title").notNull(),
   message: text("message"),
-  entityType: text("entity_type", ["lead", "property", "operation", "task", "system"]).default("system"),
+  entityType: text("entity_type", { enum: ["lead", "property", "operation", "task", "system"] }).default("system"),
   entityId: integer("entity_id"),
-  read: integer("read", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  read: boolean("read").default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Alert = typeof alerts.$inferSelect;
 
-export const cerebroSessions = sqliteTable("cerebro_sessions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const cerebroSessions = pgTable("cerebro_sessions", {
+  id: serial("id").primaryKey(),
   title: text("title"),
   userId: integer("user_id"),
   context: text("context"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type CerebroSession = typeof cerebroSessions.$inferSelect;
 
-export const cerebroMessages = sqliteTable("cerebro_messages", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const cerebroMessages = pgTable("cerebro_messages", {
+  id: serial("id").primaryKey(),
   sessionId: integer("session_id").notNull(),
-  role: text("role", ["user", "assistant", "system"]).default("user").notNull(),
+  role: text("role", { enum: ["user", "assistant", "system"] }).default("user").notNull(),
   content: text("content"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type CerebroMessage = typeof cerebroMessages.$inferSelect;
 
-export const documents = sqliteTable("documents", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  type: text("type", ["contract", "invoice", "report", "photo", "identity", "other"]).default("other").notNull(),
-  entityType: text("entity_type", ["lead", "property", "operation"]),
+  type: text("type", { enum: ["contract", "invoice", "report", "photo", "identity", "other"] }).default("other").notNull(),
+  entityType: text("entity_type", { enum: ["lead", "property", "operation"] }),
   entityId: integer("entity_id"),
   filePath: text("file_path"),
   fileSize: integer("file_size"),
   mimeType: text("mime_type"),
   uploadedBy: integer("uploaded_by"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Document = typeof documents.$inferSelect;
 
-export const interactions = sqliteTable("interactions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  type: text("type", ["call", "email", "visit", "note", "whatsapp", "sms"]).default("note").notNull(),
+export const interactions = pgTable("interactions", {
+  id: serial("id").primaryKey(),
+  type: text("type", { enum: ["call", "email", "visit", "note", "whatsapp", "sms"] }).default("note").notNull(),
   leadId: integer("lead_id"),
   propertyId: integer("property_id"),
   operationId: integer("operation_id"),
   content: text("content"),
-  direction: text("direction", ["inbound", "outbound"]).default("inbound"),
+  direction: text("direction", { enum: ["inbound", "outbound", "entrante", "saliente"] }).default("inbound"),
   duration: integer("duration"),
   createdBy: integer("created_by"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Interaction = typeof interactions.$inferSelect;
 
-export const knowledgeArticles = sqliteTable("knowledge_articles", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const knowledgeArticles = pgTable("knowledge_articles", {
+  id: serial("id").primaryKey(),
   title: text("title").notNull(),
   slug: text("slug").unique(),
   content: text("content"),
   category: text("category"),
   tags: text("tags"),
   template: text("template"),
-  isPublic: integer("is_public", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  isPublic: boolean("is_public").default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type KnowledgeArticle = typeof knowledgeArticles.$inferSelect;
 
-export const leadProperties = sqliteTable("lead_properties", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const leadProperties = pgTable("lead_properties", {
+  id: serial("id").primaryKey(),
   leadId: integer("lead_id").notNull(),
   propertyId: integer("property_id").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type LeadProperty = typeof leadProperties.$inferSelect;
 
-export const leads = sqliteTable("leads", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
-  source: text("source", ["manual", "idealista", "fotocasa", "pisos", "habitaclia", "milanuncios", "yaencontre", "email", "whatsapp", "webhook", "phone", "referral", "web", "import"]).default("manual"),
-  status: text("status", ["nuevo", "contactado", "calificado", "en_seguimiento", "descartado", "convertido"]).default("nuevo"),
-  tier: text("tier", ["hot", "warm", "cold"]).default("warm"),
-  persona: text("persona", ["inversor", "familia", "joven", "extranjero", "empresa", "particular"]),
+  source: text("source", { enum: ["manual", "idealista", "fotocasa", "pisos", "habitaclia", "milanuncios", "yaencontre", "email", "whatsapp", "webhook", "phone", "referral", "web", "import"] }).default("manual"),
+  status: text("status", { enum: ["nuevo", "contactado", "calificado", "en_seguimiento", "en_segimiento", "descartado", "convertido"] }).default("nuevo"),
+  tier: text("tier", { enum: ["hot", "warm", "cold"] }).default("warm"),
+  persona: text("persona", { enum: ["inversor", "familia", "joven", "extranjero", "empresa", "particular"] }),
   score: integer("score").default(0),
   tags: text("tags"),
-  operationType: text("operation_type", ["compra", "alquiler", "venta"]),
+  operationType: text("operation_type", { enum: ["compra", "alquiler", "venta"] }),
   zone: text("zone"),
   budgetMin: real("budget_min"),
   budgetMax: real("budget_max"),
   bedrooms: integer("bedrooms"),
   bathrooms: integer("bathrooms"),
   squareMeters: integer("square_meters"),
-  urgency: text("urgency", ["alta", "media", "baja"]).default("media"),
+  urgency: text("urgency", { enum: ["alta", "media", "baja"] }).default("media"),
   notes: text("notes"),
   assignedTo: integer("assigned_to"),
   aiClassification: text("ai_classification"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Lead = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
 
-export const offers = sqliteTable("offers", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  type: text("type", ["purchase", "rental"]).default("purchase"),
+export const offers = pgTable("offers", {
+  id: serial("id").primaryKey(),
+  type: text("type", { enum: ["purchase", "rental", "alquiler", "venta"] }).default("purchase"),
   propertyId: integer("property_id"),
   leadId: integer("lead_id"),
-  status: text("status", ["pending", "accepted", "rejected", "negotiating"]).default("pending"),
+  status: text("status", { enum: ["pending", "accepted", "rejected", "negotiating", "expired", "draft", "sent"] }).default("pending"),
   amount: real("amount"),
   conditions: text("conditions"),
-  validUntil: integer("valid_until", { mode: "timestamp" }),
+  validUntil: timestamp("valid_until", { withTimezone: true }),
   content: text("content"),
   createdBy: integer("created_by"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Offer = typeof offers.$inferSelect;
 
-export const operationChecklist = sqliteTable("operation_checklist", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const operationChecklist = pgTable("operation_checklist", {
+  id: serial("id").primaryKey(),
   operationId: integer("operation_id").notNull(),
   label: text("label").notNull(),
-  checked: integer("checked", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  checked: boolean("checked").default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type OperationChecklistItem = typeof operationChecklist.$inferSelect;
 
-export const operationTimeline = sqliteTable("operation_timeline", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const operationTimeline = pgTable("operation_timeline", {
+  id: serial("id").primaryKey(),
   operationId: integer("operation_id").notNull(),
   stage: text("stage"),
   action: text("action"),
   notes: text("notes"),
   createdBy: integer("created_by"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type OperationTimelineEvent = typeof operationTimeline.$inferSelect;
 
-export const operations = sqliteTable("operations", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  type: text("type", ["compra", "alquiler", "venta"]).default("compra"),
-  status: text("status", ["activa", "cerrada", "cancelada", "pendiente"]).default("pendiente"),
+export const operations = pgTable("operations", {
+  id: serial("id").primaryKey(),
+  type: text("type", { enum: ["compra", "alquiler", "venta", "pre_alquiler", "renovacion"] }).default("compra"),
+  status: text("status", { enum: ["activa", "cerrada", "cancelada", "pendiente", "pausada"] }).default("pendiente"),
   stage: text("stage"),
   leadId: integer("lead_id"),
   propertyId: integer("property_id"),
@@ -204,46 +207,46 @@ export const operations = sqliteTable("operations", {
   estimatedValue: real("estimated_value"),
   finalValue: real("final_value"),
   commission: real("commission"),
-  startDate: integer("start_date", { mode: "timestamp" }),
-  closeDate: integer("close_date", { mode: "timestamp" }),
-  estimatedCloseDate: integer("estimated_close_date", { mode: "timestamp" }),
+  startDate: timestamp("start_date", { withTimezone: true }),
+  closeDate: timestamp("close_date", { withTimezone: true }),
+  estimatedCloseDate: timestamp("estimated_close_date", { withTimezone: true }),
   closeReason: text("close_reason"),
-  isSuccess: integer("is_success", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  isSuccess: boolean("is_success").default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Operation = typeof operations.$inferSelect;
 
-export const prequalifications = sqliteTable("prequalifications", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const prequalifications = pgTable("prequalifications", {
+  id: serial("id").primaryKey(),
   leadId: integer("lead_id").notNull(),
   monthlyIncome: real("monthly_income"),
   employmentStatus: text("employment_status"),
   contractType: text("contract_type"),
-  hasGuarantor: integer("has_guarantor", { mode: "boolean" }).default(false),
-  pets: integer("pets", { mode: "boolean" }).default(false),
-  smoker: integer("smoker", { mode: "boolean" }).default(false),
+  hasGuarantor: boolean("has_guarantor").default(false),
+  pets: boolean("pets").default(false),
+  smoker: boolean("smoker").default(false),
   numOccupants: integer("num_occupants"),
-  preferredEntryDate: integer("preferred_entry_date", { mode: "timestamp" }),
+  preferredEntryDate: timestamp("preferred_entry_date", { withTimezone: true }),
   maxBudget: real("max_budget"),
   score: integer("score"),
-  status: text("status", ["pending", "approved", "rejected"]).default("pending"),
+  status: text("status", { enum: ["pending", "approved", "rejected"] }).default("pending"),
   notes: text("notes"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Prequalification = typeof prequalifications.$inferSelect;
 
-export const properties = sqliteTable("properties", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const properties = pgTable("properties", {
+  id: serial("id").primaryKey(),
   reference: text("reference").unique(),
   title: text("title"),
   description: text("description"),
-  type: text("type", ["piso", "casa", "atico", "duplex", "estudio", "local", "oficina", "nave", "terreno", "garaje", "trastero"]).default("piso"),
-  status: text("status", ["disponible", "reservado", "vendido", "alquilado", "inactivo"]).default("disponible"),
-  operation: text("operation", ["venta", "alquiler", "venta_alquiler"]).default("venta"),
+  type: text("type", { enum: ["piso", "casa", "atico", "duplex", "estudio", "local", "oficina", "nave", "terreno", "garaje", "trastero", "parking", "apartamento"] }).default("piso"),
+  status: text("status", { enum: ["disponible", "reservado", "vendido", "alquilado", "inactivo"] }).default("disponible"),
+  operation: text("operation", { enum: ["venta", "alquiler", "venta_alquiler", "ambos"] }).default("venta"),
   price: real("price"),
   priceSale: real("price_sale"),
   zone: text("zone"),
@@ -255,15 +258,15 @@ export const properties = sqliteTable("properties", {
   squareMeters: integer("square_meters"),
   squareMetersUseful: integer("square_meters_useful"),
   floor: integer("floor"),
-  hasElevator: integer("has_elevator", { mode: "boolean" }).default(false),
-  hasTerrace: integer("has_terrace", { mode: "boolean" }).default(false),
-  hasParking: integer("has_parking", { mode: "boolean" }).default(false),
-  hasStorage: integer("has_storage", { mode: "boolean" }).default(false),
-  hasPool: integer("has_pool", { mode: "boolean" }).default(false),
-  hasGarden: integer("has_garden", { mode: "boolean" }).default(false),
-  hasAirConditioning: integer("has_air_conditioning", { mode: "boolean" }).default(false),
-  hasHeating: integer("has_heating", { mode: "boolean" }).default(false),
-  hasFurniture: integer("has_furniture", { mode: "boolean" }).default(false),
+  hasElevator: boolean("has_elevator").default(false),
+  hasTerrace: boolean("has_terrace").default(false),
+  hasParking: boolean("has_parking").default(false),
+  hasStorage: boolean("has_storage").default(false),
+  hasPool: boolean("has_pool").default(false),
+  hasGarden: boolean("has_garden").default(false),
+  hasAirConditioning: boolean("has_air_conditioning").default(false),
+  hasHeating: boolean("has_heating").default(false),
+  hasFurniture: boolean("has_furniture").default(false),
   yearBuilt: integer("year_built"),
   condition: text("condition"),
   energyRating: text("energy_rating"),
@@ -280,68 +283,68 @@ export const properties = sqliteTable("properties", {
   monthlyRent: real("monthly_rent"),
   profitability: real("profitability"),
   notes: text("notes"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Property = typeof properties.$inferSelect;
 
-export const reservations = sqliteTable("reservations", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const reservations = pgTable("reservations", {
+  id: serial("id").primaryKey(),
   propertyId: integer("property_id"),
   leadId: integer("lead_id"),
-  status: text("status", ["active", "cancelled", "expired", "converted"]).default("active"),
+  status: text("status", { enum: ["active", "cancelled", "expired", "converted", "pending", "confirmed"] }).default("active"),
   amount: real("amount"),
-  startDate: integer("start_date", { mode: "timestamp" }),
-  endDate: integer("end_date", { mode: "timestamp" }),
+  startDate: timestamp("start_date", { withTimezone: true }),
+  endDate: timestamp("end_date", { withTimezone: true }),
   notes: text("notes"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Reservation = typeof reservations.$inferSelect;
 
-export const settings = sqliteTable("settings", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const settings = pgTable("settings", {
+  id: serial("id").primaryKey(),
   key: text("key").notNull().unique(),
   value: text("value"),
   category: text("category"),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Setting = typeof settings.$inferSelect;
 
-export const tasks = sqliteTable("tasks", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description"),
-  status: text("status", ["pending", "in_progress", "completed", "cancelled"]).default("pending"),
-  priority: text("priority", ["low", "medium", "high", "urgent"]).default("medium"),
+  status: text("status", { enum: ["pending", "in_progress", "completed", "cancelled"] }).default("pending"),
+  priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).default("medium"),
   assignedTo: integer("assigned_to"),
   leadId: integer("lead_id"),
   propertyId: integer("property_id"),
   operationId: integer("operation_id"),
-  dueDate: integer("due_date", { mode: "timestamp" }),
-  completedAt: integer("completed_at", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  dueDate: timestamp("due_date", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Task = typeof tasks.$inferSelect;
 
-export const visits = sqliteTable("visits", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const visits = pgTable("visits", {
+  id: serial("id").primaryKey(),
   propertyId: integer("property_id"),
   leadId: integer("lead_id"),
   agentId: integer("agent_id"),
-  status: text("status", ["scheduled", "completed", "cancelled", "no_show"]).default("scheduled"),
-  scheduledAt: integer("scheduled_at", { mode: "timestamp" }),
-  completedAt: integer("completed_at", { mode: "timestamp" }),
+  status: text("status", { enum: ["scheduled", "completed", "cancelled", "no_show"] }).default("scheduled"),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
   feedback: text("feedback"),
   rating: integer("rating"),
   notes: text("notes"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Visit = typeof visits.$inferSelect;
@@ -350,8 +353,8 @@ export type Visit = typeof visits.$inferSelect;
 //  GOOGLE INTEGRATION TABLES (new)
 // ═══════════════════════════════════════════════════════════
 
-export const transcriptions = sqliteTable("crm_transcriptions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const transcriptions = pgTable("crm_transcriptions", {
+  id: serial("id").primaryKey(),
   fileName: text("fileName").notNull(),
   fileSize: text("fileSize").default("0"),
   duration: real("duration").default(0),
@@ -372,28 +375,28 @@ export const transcriptions = sqliteTable("crm_transcriptions", {
   propertyId: integer("propertyId"),
   notes: text("notes"),
 
-  processingStatus: text("processingStatus", [
+  processingStatus: text("processingStatus", { enum: [
     "pending",
     "downloading",
     "transcribing",
     "analyzing",
     "completed",
     "error",
-  ])
+  ] })
     .default("pending")
     .notNull(),
   errorMessage: text("errorMessage"),
   processedBy: integer("processedBy"),
-  processedAt: integer("processedAt", { mode: "timestamp" }),
-  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updatedAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  processedAt: timestamp("processedAt", { withTimezone: true }),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Transcription = typeof transcriptions.$inferSelect;
 export type InsertTranscription = typeof transcriptions.$inferInsert;
 
-export const transcriptionAnalysis = sqliteTable("crm_transcriptionAnalysis", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const transcriptionAnalysis = pgTable("crm_transcriptionAnalysis", {
+  id: serial("id").primaryKey(),
   transcriptionId: integer("transcriptionId").notNull(),
 
   sentiment: text("sentiment"),
@@ -409,43 +412,43 @@ export const transcriptionAnalysis = sqliteTable("crm_transcriptionAnalysis", {
   speakerRatioJson: text("speakerRatioJson"),
   talkTimeSeconds: real("talkTimeSeconds"),
 
-  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updatedAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type TranscriptionAnalysis = typeof transcriptionAnalysis.$inferSelect;
 export type InsertTranscriptionAnalysis = typeof transcriptionAnalysis.$inferInsert;
 
-export const driveSyncLog = sqliteTable("crm_driveSyncLog", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const driveSyncLog = pgTable("crm_driveSyncLog", {
+  id: serial("id").primaryKey(),
   folderId: text("folderId").notNull(),
   folderName: text("folderName"),
   fileId: text("fileId").notNull(),
   fileName: text("fileName").notNull(),
-  action: text("action", [
+  action: text("action", { enum: [
     "discovered",
     "transcribed",
     "imported",
     "skipped_duplicate",
     "skipped_format",
     "error",
-  ])
+  ] })
     .default("discovered")
     .notNull(),
   details: text("details"),
   mimeType: text("mimeType"),
   fileSize: text("fileSize"),
-  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type DriveSyncLog = typeof driveSyncLog.$inferSelect;
 export type InsertDriveSyncLog = typeof driveSyncLog.$inferInsert;
 
-export const documentImports = sqliteTable("crm_documentImports", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const documentImports = pgTable("crm_documentImports", {
+  id: serial("id").primaryKey(),
   fileName: text("fileName").notNull(),
-  fileType: text("fileType", ["excel", "csv", "pdf", "docx", "other"]).notNull(),
-  source: text("source", ["drive", "upload"]).default("drive").notNull(),
+  fileType: text("fileType", { enum: ["excel", "csv", "pdf", "docx", "other"] }).notNull(),
+  source: text("source", { enum: ["drive", "upload"] }).default("drive").notNull(),
   driveFileId: text("driveFileId"),
   driveFileUrl: text("driveFileUrl"),
 
@@ -457,23 +460,23 @@ export const documentImports = sqliteTable("crm_documentImports", {
   errorCount: integer("errorCount").default(0),
 
   mappingJson: text("mappingJson"),
-  importTarget: text("importTarget", [
+  importTarget: text("importTarget", { enum: [
     "leads",
     "properties",
     "operations",
     "contacts",
     "none",
-  ]).default("none"),
+  ] }).default("none"),
 
-  status: text("status", ["pending", "processing", "completed", "error", "cancelled"])
+  status: text("status", { enum: ["pending", "processing", "completed", "error", "cancelled"] })
     .default("pending")
     .notNull(),
   errorMessage: text("errorMessage"),
 
   createdBy: integer("createdBy"),
-  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updatedAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  completedAt: integer("completedAt", { mode: "timestamp" }),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp("completedAt", { withTimezone: true }),
 });
 
 export type DocumentImport = typeof documentImports.$inferSelect;
@@ -484,12 +487,12 @@ export type InsertDocumentImport = typeof documentImports.$inferInsert;
 //  IMPORT PIPELINE TABLES
 // ═══════════════════════════════════════════════════════════
 
-export const importJobs = sqliteTable("crm_importJobs", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const importJobs = pgTable("crm_importJobs", {
+  id: serial("id").primaryKey(),
   fileName: text("fileName").notNull(),
-  fileType: text("fileType", ["xlsx", "csv", "pdf"]).notNull(),
-  detectedType: text("detectedType", ["contacts", "properties", "mixed", "unknown"]).default("unknown"),
-  status: text("status", ["pending", "parsing", "importing", "processing", "completed", "error", "cancelled"]).default("pending").notNull(),
+  fileType: text("fileType", { enum: ["xlsx", "csv", "pdf"] }).notNull(),
+  detectedType: text("detectedType", { enum: ["contacts", "properties", "mixed", "unknown"] }).default("unknown"),
+  status: text("status", { enum: ["pending", "parsing", "importing", "processing", "completed", "error", "cancelled"] }).default("pending").notNull(),
   totalRows: integer("totalRows").default(0),
   fileSize: integer("fileSize").default(0),
   imported: integer("imported").default(0),
@@ -499,26 +502,26 @@ export const importJobs = sqliteTable("crm_importJobs", {
   confidence: real("confidence").default(0),
   config: text("config"),
   errorLog: text("errorLog"),
-  completedAt: integer("completedAt", { mode: "timestamp" }),
+  completedAt: timestamp("completedAt", { withTimezone: true }),
   createdBy: integer("createdBy"),
-  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-  updatedAt: integer("updatedAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type ImportJob = typeof importJobs.$inferSelect;
 export type InsertImportJob = typeof importJobs.$inferInsert;
 
-export const importRows = sqliteTable("crm_importRows", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const importRows = pgTable("crm_importRows", {
+  id: serial("id").primaryKey(),
   importId: integer("importId").notNull(),
   rowNumber: integer("rowNumber").notNull(),
   rawData: text("rawData"),
   normalizedData: text("normalizedData"),
-  status: text("status", ["pending", "created", "imported", "duplicate", "error", "skipped"]).default("pending"),
+  status: text("status", { enum: ["pending", "created", "imported", "duplicate", "error", "skipped"] }).default("pending"),
   errorMessage: text("errorMessage"),
-  entityType: text("entityType", ["lead", "property", "mixed", "operation", "none"]).default("none"),
+  entityType: text("entityType", { enum: ["lead", "property", "mixed", "operation", "none", "unknown"] }).default("none"),
   entityId: integer("entityId"),
-  createdAt: integer("createdAt", { mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type ImportRow = typeof importRows.$inferSelect;

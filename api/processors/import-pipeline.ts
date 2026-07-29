@@ -321,19 +321,19 @@ async function createLead(data: Record<string, unknown>): Promise<number> {
       name: String(data.name || ""),
       email: data.email ? String(data.email) : null,
       phone: data.phone ? String(data.phone) : null,
-      source: data.source ? String(data.source) : "import",
-      status: data.status ? String(data.status) : "nuevo",
-      operationType: data.operationType as "compra" | "alquiler" | "venta" | null,
+      source: (data.source ? String(data.source) : "import") as any,
+      status: (data.status ? String(data.status) : "nuevo") as any,
+      operationType: data.operationType as any,
       zone: data.zone ? String(data.zone) : null,
       budgetMin: data.budgetMin as number | null,
       budgetMax: data.budgetMax as number | null,
       bedrooms: data.bedrooms as number | null,
       bathrooms: data.bathrooms as number | null,
       squareMeters: data.squareMeters as number | null,
-      urgency: data.urgency as "alta" | "media" | "baja" | null,
+      urgency: data.urgency as any,
       notes: data.notes ? String(data.notes) : null,
       assignedTo: data.assignedTo as number | null,
-    })
+    } as any)
     .returning();
 
   return result[0].id;
@@ -560,7 +560,7 @@ export async function importCallFile(
       .insert(interactions)
       .values({
         leadId,
-        type: parsed.channel === "llamada" ? "llamada" : "whatsapp",
+        type: parsed.channel === "llamada" ? "call" : "whatsapp",
         direction: parsed.direction,
         content: interactionContent,
         createdAt: parsed.callDate,
@@ -822,7 +822,7 @@ export async function runImportPipeline(
                 result.linked += linkedCount;
                 // Create interaction record
                 await db.insert(interactions).values({
-                  type: "nota",
+                  type: "note",
                   leadId,
                   content: `Importado automáticamente. Vinculado a ${linkedCount} propiedad(es) por número de teléfono coincidente.`,
                   direction: "inbound",
@@ -884,7 +884,7 @@ export async function runImportPipeline(
               if (linkedCount && linkedCount > 0) {
                 result.linked += linkedCount;
                 await db.insert(interactions).values({
-                  type: "nota",
+                  type: "note",
                   leadId: createdLeadId as number,
                   content: `Importado automáticamente. Vinculado a ${linkedCount} propiedad(es) por número de teléfono coincidente.`,
                   direction: "inbound",
@@ -905,7 +905,7 @@ export async function runImportPipeline(
           .update(importRows)
           .set({
             status: "created",
-            entityType: transformed.type === "mixed" ? "mixed" : transformed.type,
+            entityType: (transformed.type === "mixed" ? "mixed" : transformed.type) as "lead" | "property" | "mixed" | "unknown" | "operation" | "none",
           })
           .where(and(eq(importRows.importId, jobId), eq(importRows.rowNumber, rowNumber)));
       } catch (err) {
