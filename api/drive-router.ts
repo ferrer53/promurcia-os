@@ -437,10 +437,11 @@ export const driveRouter = createRouter({
           });
           const fileName = fileInfo.data.name || "unknown";
 
-          let fileType: "csv" | "xlsx" | "pdf" | null = null;
+          let fileType: "csv" | "xlsx" | "pdf" | "json-call" | null = null;
           if (mimeType.includes("pdf")) fileType = "pdf";
-          else if (mimeType.includes("csv") || mimeType.includes("text/plain") || mimeType.includes("application/json")) fileType = "csv";
+          else if (mimeType.includes("csv") || mimeType.includes("text/plain")) fileType = "csv";
           else if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("officedocument.spreadsheet")) fileType = "xlsx";
+          else if (mimeType.includes("application/json")) fileType = "json-call";
 
           if (!fileType) {
             results.push({ fileId, fileName, status: "skipped", error: "Formato no soportado para importación" });

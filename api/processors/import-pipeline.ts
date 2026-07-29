@@ -6,6 +6,7 @@
 import { parseExcel } from "./excel-processor";
 import { parseCSV } from "./csv-processor";
 import { parsePDF } from "./pdf-processor";
+import { parseCallFileName, type ParsedCallFile } from "./call-parser";
 import { db } from "../../db/connection";
 import { leads, properties, leadProperties, importJobs, importRows, interactions } from "../../db/schema";
 import { eq, like, or, and } from "drizzle-orm";
@@ -22,7 +23,7 @@ export interface ImportPipelineResult {
   linked: number;
   details: Array<{
     row: number;
-    type: "lead" | "property";
+    type: "lead" | "property" | "mixed";
     action: "created" | "duplicate" | "error" | "linked" | "skipped";
     data: Record<string, unknown>;
     error?: string;
@@ -458,11 +459,133 @@ async function autoLinkPropertyToLeads(propertyId: number, ownerPhone: string): 
   return linkedCount;
 }
 
+// ── Call JSON Import ────────────────────────────────────────────────
+
+export interface CallImportResult {
+  leadId?: number;
+  propertyId?: number;
+  interactionId?: number;
+  action: "created" | "duplicate" | "error";
+  error?: string;
+}
+
+export async function importCallFile(
+  parsed: ParsedCallFile,
+  options: ImportOptions = {}
+): Promise<CallImportResult> {
+  const opts = {
+    skipDuplicates: true,
+    autoLink: true,
+    ...options,
+  };
+
+  try {
+    // 1. Create or find lead by phone
+    let leadId: number | undefined;
+    let action: "created" | "duplicate" = "created";
+
+    if (parsed.phone) {
+      leadId = (await findExistingLeadByPhone(parsed.phone)) ?? undefined;
+    }
+
+    if (!leadId && parsed.contactName) {
+      // Try to find by name as fallback
+      const byName = await db.query.leads.findMany({
+        where: eq(leads.name, parsed.contactName),
+        limit: 1,
+      });
+      leadId = byName[0]?.id;
+    }
+
+    if (leadId) {
+      action = "duplicate";
+    } else {
+      const leadData = {
+        name: parsed.contactName || (parsed.phone ? `Contacto ${parsed.phone}` : "Contacto sin nombre"),
+        phone: parsed.phone || null,
+        email: null,
+        source: opts.defaultSource || "drive-call",
+        status: opts.defaultStatus || "nuevo",
+        zone: parsed.propertyZone || null,
+        operationType: parsed.role === "propietario" ? "venta" : parsed.role === "interesado" ? "compra" : null,
+        bedrooms: parsed.bedrooms || null,
+        notes: parsed.notes || null,
+        assignedTo: opts.assignTo || null,
+      };
+      leadId = await createLead(leadData);
+    }
+
+    // 2. Create property if we have address/price/bedrooms
+    let propertyId: number | undefined;
+    if (parsed.propertyAddress || parsed.price || parsed.bedrooms) {
+      const existing = parsed.propertyAddress
+        ? await findExistingPropertyByAddress(parsed.propertyAddress)
+        : null;
+
+      if (!existing) {
+        const propertyData = {
+          reference: `AUTO-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          title: parsed.propertyAddress || "Propiedad sin título",
+          description: `Detectado en archivo de ${parsed.channel}: ${parsed.rawFileName}`,
+          type: "piso",
+          status: "disponible" as const,
+          operation: parsed.price && parsed.price < 1000 ? "alquiler" : "venta",
+          price: parsed.price || 0,
+          zone: parsed.propertyZone || "Murcia",
+          address: parsed.propertyAddress || null,
+          city: "Murcia",
+          bedrooms: parsed.bedrooms || null,
+          ownerName: parsed.contactName || null,
+          ownerPhone: parsed.phone || null,
+          notes: parsed.notes || null,
+        };
+        propertyId = await createProperty(propertyData);
+
+        if (opts.autoLink && parsed.phone) {
+          await autoLinkPropertyToLeads(propertyId, parsed.phone);
+        }
+      } else {
+        propertyId = existing;
+      }
+    }
+
+    // 3. Create interaction (call/whatsapp)
+    const interactionContent = `${parsed.channel === "llamada" ? "Llamada" : "WhatsApp"} ${parsed.direction}`
+      + (parsed.durationMs ? ` - Duración: ${Math.round(parsed.durationMs / 1000)}s` : "")
+      + (parsed.propertyAddress ? ` - Dirección: ${parsed.propertyAddress}` : "")
+      + (parsed.price ? ` - Precio: ${parsed.price}€` : "")
+      + (parsed.rawContent ? ` - Metadata: ${JSON.stringify(parsed.rawContent)}` : "");
+
+    const [interaction] = await db
+      .insert(interactions)
+      .values({
+        leadId,
+        type: parsed.channel === "llamada" ? "llamada" : "whatsapp",
+        direction: parsed.direction,
+        content: interactionContent,
+        createdAt: parsed.callDate,
+      })
+      .returning();
+
+    return {
+      leadId,
+      propertyId,
+      interactionId: interaction.id,
+      action,
+    };
+  } catch (err) {
+    return {
+      action: "error",
+      error: err instanceof Error ? err.message : "Error desconocido",
+    };
+  }
+}
+
 // ── Job Management ──────────────────────────────────────────────────
 
 export async function createImportJob(
   fileName: string,
-  fileType: "xlsx" | "csv" | "pdf",
+  fileType: "xlsx" | "csv" | "pdf" | "json-call",
   fileSize: number,
   options: ImportOptions,
   startedBy?: number
@@ -504,7 +627,7 @@ export async function updateImportJobStatus(
  */
 export async function runImportPipeline(
   fileBuffer: Buffer,
-  fileType: "xlsx" | "csv" | "pdf",
+  fileType: "xlsx" | "csv" | "pdf" | "json-call",
   options: ImportOptions = {},
   fileName?: string
 ): Promise<ImportPipelineResult> {
@@ -588,6 +711,46 @@ export async function runImportPipeline(
         detectedType = pdfResult.phones.length > 3 ? "contacts" : "mixed";
       }
       confidence = pdfResult.confidence;
+    } else if (fileType === "json-call") {
+      // Call/WhatsApp JSON files are handled as single-record imports
+      const jsonText = fileBuffer.toString("utf8");
+      const jsonContent = JSON.parse(jsonText) as Record<string, unknown>;
+      const parsed = parseCallFileName(fileName || "call.json", jsonContent);
+      const callResult = await importCallFile(parsed, opts);
+
+      result.totalRows = 1;
+      result.details.push({
+        row: 1,
+        type: callResult.propertyId ? "mixed" : "lead",
+        action: callResult.action === "error" ? "error" : callResult.action,
+        data: {
+          leadId: callResult.leadId,
+          propertyId: callResult.propertyId,
+          interactionId: callResult.interactionId,
+          ...parsed,
+        },
+        entityId: callResult.leadId,
+        error: callResult.error,
+      });
+
+      if (callResult.action === "created") {
+        result.imported++;
+        if (callResult.propertyId) result.linked++;
+      } else if (callResult.action === "duplicate") {
+        result.duplicates++;
+      } else if (callResult.action === "error") {
+        result.errors++;
+      }
+
+      await updateImportJobStatus(jobId, "completed", {
+        imported: result.imported,
+        duplicates: result.duplicates,
+        errors: result.errors,
+        linked: result.linked,
+        completedAt: new Date(),
+      });
+
+      return result;
     }
 
     result.totalRows = allRows.length;

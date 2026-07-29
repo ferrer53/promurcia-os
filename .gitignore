@@ -21,3 +21,9 @@ coverage/
 # Logs
 *.log
 *.db
+
+# SQLite local databases
+*.db
+*.db-shm
+*.db-wal
+*.db.bak.*
