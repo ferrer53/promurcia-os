@@ -503,4 +503,117 @@ export const driveRouter = createRouter({
 
       return { success: true, results, totalFiles: results.length };
     }),
+
+  // Process all supported Drive files in batches
+  processBatch: publicQuery
+    .input(
+      z.object({
+        limit: z.number().min(1).max(50).default(20),
+        pageToken: z.string().optional(),
+      }).optional()
+    )
+    .mutation(async ({ input }) => {
+      const startTime = Date.now();
+      const drive = await getDriveClient();
+      const mimeTypeFilter =
+        "(mimeType='text/csv' or mimeType='application/vnd.google-apps.spreadsheet' or mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/pdf' or mimeType='image/jpeg' or mimeType='image/png' or mimeType='text/plain' or mimeType='application/json')";
+
+      const listRes = await drive.files.list({
+        q: `trashed=false and ${mimeTypeFilter}`,
+        pageSize: input?.limit || 20,
+        pageToken: input?.pageToken || undefined,
+        fields: "nextPageToken, files(id, name, mimeType, size)",
+        orderBy: "modifiedTime desc",
+      });
+
+      const files = listRes.data.files || [];
+      const results: Array<{
+        fileId: string;
+        fileName?: string;
+        status: string;
+        summary?: any;
+        error?: string;
+      }> = [];
+
+      for (const file of files) {
+        const fileId = file.id || "";
+        const fileName = file.name || "unknown";
+        const mimeType = file.mimeType || "";
+
+        try {
+          let fileType: "csv" | "xlsx" | "pdf" | "json-call" | null = null;
+          if (mimeType.includes("pdf")) fileType = "pdf";
+          else if (mimeType.includes("csv") || mimeType.includes("text/plain")) fileType = "csv";
+          else if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("officedocument.spreadsheet")) fileType = "xlsx";
+          else if (mimeType.includes("application/json")) fileType = "json-call";
+
+          if (!fileType) {
+            results.push({ fileId, fileName, status: "skipped", error: "Formato no soportado" });
+            continue;
+          }
+
+          let buffer: Buffer;
+          if (mimeType.includes("google-apps.spreadsheet")) {
+            const exportRes = await drive.files.export(
+              { fileId, mimeType: "text/csv" },
+              { responseType: "text" }
+            );
+            buffer = Buffer.from(String(exportRes.data), "utf8");
+          } else {
+            const download = await drive.files.get(
+              { fileId, alt: "media" },
+              { responseType: "arraybuffer" }
+            );
+            buffer = Buffer.from(download.data as ArrayBuffer);
+          }
+
+          const pipelineResult = await runImportPipeline(
+            buffer,
+            fileType,
+            { skipDuplicates: true, autoLink: true, defaultSource: "drive", defaultStatus: "nuevo" },
+            fileName
+          );
+
+          await db.insert(documents).values({
+            name: fileName,
+            type: "other",
+            mimeType,
+            fileSize: buffer.length,
+            filePath: `drive://${fileId}`,
+          });
+
+          results.push({
+            fileId,
+            fileName,
+            status: "imported",
+            summary: {
+              jobId: pipelineResult.jobId,
+              totalRows: pipelineResult.totalRows,
+              imported: pipelineResult.imported,
+              duplicates: pipelineResult.duplicates,
+              linked: pipelineResult.linked,
+              errors: pipelineResult.errors,
+            },
+          });
+        } catch (error: any) {
+          results.push({
+            fileId,
+            fileName,
+            status: "error",
+            error: error.message || "Error al importar",
+          });
+        }
+      }
+
+      return {
+        success: true,
+        processed: results.length,
+        imported: results.filter((r) => r.status === "imported").length,
+        errors: results.filter((r) => r.status === "error").length,
+        skipped: results.filter((r) => r.status === "skipped").length,
+        nextPageToken: listRes.data.nextPageToken || null,
+        results,
+        elapsedMs: Date.now() - startTime,
+      };
+    }),
 });
