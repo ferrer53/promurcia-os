@@ -13,7 +13,7 @@ import * as Icons from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 const easeOutExpo = [0.16, 1, 0.3, 1] as [number, number, number, number];
-const categories = ['todas', 'crm', 'productividad', 'utilidades', 'multimedia', 'herramientas', 'juegos'] as const;
+const categories = ['todas', 'crm', 'productividad', 'utilidades', 'herramientas', 'sistema'] as const;
 
 export function AppLauncher() {
   const toggleLauncher = useOSStore((s) => s.toggleLauncher);
