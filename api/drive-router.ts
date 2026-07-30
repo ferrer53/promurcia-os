@@ -510,13 +510,15 @@ export const driveRouter = createRouter({
       z.object({
         limit: z.number().min(1).max(50).default(20),
         pageToken: z.string().optional(),
+        mimeTypes: z.array(z.string()).optional(),
       }).optional()
     )
     .mutation(async ({ input }) => {
       const startTime = Date.now();
       const drive = await getDriveClient();
-      const mimeTypeFilter =
-        "(mimeType='text/csv' or mimeType='application/vnd.google-apps.spreadsheet' or mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/pdf' or mimeType='image/jpeg' or mimeType='image/png' or mimeType='text/plain' or mimeType='application/json')";
+      const mimeTypeFilter = input?.mimeTypes?.length
+        ? input.mimeTypes.map((m) => `mimeType='${m}'`).join(" or ")
+        : "(mimeType='text/csv' or mimeType='application/vnd.google-apps.spreadsheet' or mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/pdf' or mimeType='image/jpeg' or mimeType='image/png' or mimeType='text/plain' or mimeType='application/json')";
 
       const listRes = await drive.files.list({
         q: `trashed=false and ${mimeTypeFilter}`,
