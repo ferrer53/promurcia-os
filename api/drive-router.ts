@@ -521,7 +521,7 @@ export const driveRouter = createRouter({
         : "(mimeType='text/csv' or mimeType='application/vnd.google-apps.spreadsheet' or mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/pdf' or mimeType='image/jpeg' or mimeType='image/png' or mimeType='text/plain' or mimeType='application/json')";
 
       const listRes = await drive.files.list({
-        q: `trashed=false and ${mimeTypeFilter}`,
+        q: `trashed=false and (${mimeTypeFilter})`,
         pageSize: input?.limit || 20,
         pageToken: input?.pageToken || undefined,
         fields: "nextPageToken, files(id, name, mimeType, size)",
