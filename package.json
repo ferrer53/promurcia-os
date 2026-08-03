@@ -18,6 +18,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
+    "drive:discover": "npx tsx scripts/process-drive-queue.ts discover",
+    "drive:process": "npx tsx scripts/process-drive-queue.ts process",
+    "drive:once": "npx tsx scripts/process-drive-queue.ts once",
     "build": "vite build && esbuild api/boot.ts --platform=node --bundle --format=esm --outdir=dist --external:better-sqlite3 --external:pg --external:googleapis --external:@google-cloud/speech --external:@google-cloud/storage --external:xlsx --external:csv-parse --external:pdf-parse --external:openai --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\""
   },
   "dependencies": {

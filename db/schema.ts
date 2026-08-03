@@ -81,6 +81,8 @@ export const documents = pgTable("documents", {
   filePath: text("file_path"),
   fileSize: integer("file_size"),
   mimeType: text("mime_type"),
+  driveFileId: text("drive_file_id"),
+  driveFileUrl: text("drive_file_url"),
   uploadedBy: integer("uploaded_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -526,3 +528,39 @@ export const importRows = pgTable("crm_importRows", {
 
 export type ImportRow = typeof importRows.$inferSelect;
 export type InsertImportRow = typeof importRows.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════
+//  DRIVE IMPORT QUEUE (new)
+//  Tracks every Drive file through discovery → analysis → import
+// ═══════════════════════════════════════════════════════════
+
+export const driveImportQueue = pgTable("crm_driveImportQueue", {
+  id: serial("id").primaryKey(),
+  driveFileId: text("driveFileId").notNull().unique(),
+  name: text("name").notNull(),
+  mimeType: text("mimeType").notNull(),
+  size: text("size").default("0"),
+  folderId: text("folderId"),
+  folderName: text("folderName"),
+  webViewLink: text("webViewLink"),
+  status: text("status", {
+    enum: ["pending", "analyzing", "analyzed", "importing", "imported", "error", "skipped"],
+  })
+    .default("pending")
+    .notNull(),
+  detectedCategory: text("detectedCategory", {
+    enum: ["lead", "property", "interaction", "document", "audio", "image", "mixed", "unknown"],
+  }).default("unknown"),
+  extractedText: text("extractedText"),
+  aiAnalysisJson: text("aiAnalysisJson"),
+  entitiesCreatedJson: text("entitiesCreatedJson"),
+  retryCount: integer("retryCount").default(0),
+  lastError: text("lastError"),
+  driveModifiedAt: timestamp("driveModifiedAt", { withTimezone: true }),
+  processedAt: timestamp("processedAt", { withTimezone: true }),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type DriveImportQueue = typeof driveImportQueue.$inferSelect;
+export type InsertDriveImportQueue = typeof driveImportQueue.$inferInsert;
