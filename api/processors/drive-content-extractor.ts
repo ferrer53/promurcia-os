@@ -8,11 +8,19 @@ import { speechService } from "../google/speech-service"; // assumed existing
 
 const MAX_TEXT_LENGTH = 25000;
 
+function parseServiceAccountKey(keyJson: string): any {
+  const trimmed = keyJson.trim();
+  if (trimmed.startsWith("{")) {
+    return JSON.parse(trimmed);
+  }
+  return JSON.parse(Buffer.from(trimmed, "base64").toString("utf8"));
+}
+
 async function getDriveClient() {
   const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!keyJson) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY no configurado");
 
-  const credentials = JSON.parse(Buffer.from(keyJson, "base64").toString());
+  const credentials = parseServiceAccountKey(keyJson);
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: ["https://www.googleapis.com/auth/drive.readonly"],

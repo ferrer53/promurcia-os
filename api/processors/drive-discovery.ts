@@ -34,11 +34,21 @@ function buildMimeQuery(): string {
   return SUPPORTED_MIME_TYPES.map((m) => `mimeType='${m}'`).join(" or ");
 }
 
+function parseServiceAccountKey(keyJson: string): any {
+  const trimmed = keyJson.trim();
+  // Direct JSON
+  if (trimmed.startsWith("{")) {
+    return JSON.parse(trimmed);
+  }
+  // Base64-encoded JSON
+  return JSON.parse(Buffer.from(trimmed, "base64").toString("utf8"));
+}
+
 async function getDriveClient() {
   const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!keyJson) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY no configurado");
 
-  const credentials = JSON.parse(Buffer.from(keyJson, "base64").toString());
+  const credentials = parseServiceAccountKey(keyJson);
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: ["https://www.googleapis.com/auth/drive.readonly"],

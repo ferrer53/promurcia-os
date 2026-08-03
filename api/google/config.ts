@@ -125,9 +125,10 @@ export async function getGoogleAuth(scopes?: string[]) {
   ];
 
   if (GOOGLE_CONFIG.serviceAccountKey) {
-    const credentials = JSON.parse(
-      Buffer.from(GOOGLE_CONFIG.serviceAccountKey, "base64").toString()
-    );
+    const key = GOOGLE_CONFIG.serviceAccountKey.trim();
+    const credentials = key.startsWith("{")
+      ? JSON.parse(key)
+      : JSON.parse(Buffer.from(key, "base64").toString("utf8"));
     return new google.auth.GoogleAuth({
       credentials,
       scopes: allScopes,
