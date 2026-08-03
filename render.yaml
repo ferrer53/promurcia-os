@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: NODE_ENV=development npm install && npm run build
-    startCommand: npx drizzle-kit push --force && npx tsx scripts/seed-admin.ts && npm start
+    startCommand: npx drizzle-kit push --force && npx tsx scripts/seed-admin.ts && (nohup npx tsx scripts/process-drive-queue.ts process > /tmp/promurcia-drive/auto-worker.log 2>&1 &) && npm start
     envVars:
       - key: NODE_ENV
         value: production
