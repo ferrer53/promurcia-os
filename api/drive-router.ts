@@ -678,6 +678,22 @@ export const driveRouter = createRouter({
     return getQueueCounts();
   }),
 
+  // Test disk persistence between requests
+  testDisk: adminQuery.query(() => {
+    const fs = require("fs");
+    const testFile = "/tmp/promurcia-drive/disk-test.txt";
+    const now = new Date().toISOString();
+    fs.mkdirSync("/tmp/promurcia-drive", { recursive: true });
+    let previous = "";
+    try {
+      previous = fs.readFileSync(testFile, "utf8");
+    } catch {
+      previous = "(no previous)";
+    }
+    fs.writeFileSync(testFile, now);
+    return { previous, now };
+  }),
+
   // Get recent worker logs from disk
   getWorkerLogs: adminQuery
     .input(z.object({ lines: z.number().min(1).max(500).default(100) }))
