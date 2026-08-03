@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "./middleware";
+import { createRouter, publicQuery, adminQuery } from "./middleware";
+import { spawn } from "child_process";
 import OpenAI from "openai";
 import { runImportPipeline } from "./processors/import-pipeline";
 import { db } from "../db/connection";
@@ -78,6 +79,23 @@ REGLAS:
 
 Contenido del archivo:
 `;
+
+// ─── Background worker helpers ───────────────────────────────────
+
+function runDetachedScript(args: string[]): { pid: number; logPath: string } {
+  const logDir = "/tmp/promurcia-drive";
+  const logFile = `${logDir}/worker-${args[0]}-${Date.now()}.log`;
+  require("fs").mkdirSync(logDir, { recursive: true });
+  const out = require("fs").openSync(logFile, "a");
+  const err = require("fs").openSync(logFile, "a");
+  const child = spawn("npx", ["tsx", "scripts/process-drive-queue.ts", ...args], {
+    detached: true,
+    stdio: ["ignore", out, err],
+    env: process.env,
+  });
+  child.unref();
+  return { pid: child.pid!, logPath: logFile };
+}
 
 // ─── Phone Normalization ─────────────────────────────────────────
 
@@ -618,4 +636,32 @@ export const driveRouter = createRouter({
         elapsedMs: Date.now() - startTime,
       };
     }),
+
+  // Start discovery of Drive files in background
+  startDiscovery: adminQuery.mutation(async () => {
+    const { pid, logPath } = runDetachedScript(["discover"]);
+    return {
+      success: true,
+      message: "Descubrimiento de Drive iniciado en segundo plano",
+      pid,
+      logPath,
+    };
+  }),
+
+  // Start processing queue in background
+  startWorker: adminQuery.mutation(async () => {
+    const { pid, logPath } = runDetachedScript(["process"]);
+    return {
+      success: true,
+      message: "Worker de procesamiento iniciado en segundo plano",
+      pid,
+      logPath,
+    };
+  }),
+
+  // Get queue statistics
+  getQueueStats: adminQuery.query(async () => {
+    const { getQueueCounts } = await import("./processors/drive-queue");
+    return getQueueCounts();
+  }),
 });
