@@ -85,9 +85,10 @@ Contenido del archivo:
 function runDetachedScript(args: string[]): { pid: number; logPath: string } {
   const logDir = "/tmp/promurcia-drive";
   const logFile = `${logDir}/worker-${args[0]}-${Date.now()}.log`;
-  require("fs").mkdirSync(logDir, { recursive: true });
-  const out = require("fs").openSync(logFile, "a");
-  const err = require("fs").openSync(logFile, "a");
+  const fs = require("fs");
+  fs.mkdirSync(logDir, { recursive: true });
+  const out = fs.openSync(logFile, "a");
+  const err = fs.openSync(logFile, "a");
   const child = spawn("npx", ["tsx", "scripts/process-drive-queue.ts", ...args], {
     detached: true,
     stdio: ["ignore", out, err],
@@ -664,4 +665,34 @@ export const driveRouter = createRouter({
     const { getQueueCounts } = await import("./processors/drive-queue");
     return getQueueCounts();
   }),
+
+  // Get recent worker logs from disk
+  getWorkerLogs: adminQuery
+    .input(z.object({ lines: z.number().min(1).max(500).default(100) }))
+    .query(async ({ input }) => {
+      const fs = require("fs");
+      const path = require("path");
+      const logDir = "/tmp/promurcia-drive";
+      if (!fs.existsSync(logDir)) {
+        return { logs: [], files: [] };
+      }
+      const files = fs
+        .readdirSync(logDir)
+        .filter((f: string) => f.endsWith(".log"))
+        .map((f: string) => ({
+          name: f,
+          path: path.join(logDir, f),
+          mtime: fs.statSync(path.join(logDir, f)).mtime.toISOString(),
+        }))
+        .sort((a: any, b: any) => new Date(b.mtime).getTime() - new Date(a.mtime).getTime());
+
+      const logs: string[] = [];
+      for (const file of files.slice(0, 5)) {
+        const content = fs.readFileSync(file.path, "utf8");
+        const lines = content.split("\n").filter(Boolean).slice(-input.lines);
+        logs.push(`--- ${file.name} ---`);
+        logs.push(...lines);
+      }
+      return { logs, files: files.map((f: any) => f.name) };
+    }),
 });
