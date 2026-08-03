@@ -87,14 +87,26 @@ function runDetachedScript(args: string[]): { pid: number; logPath: string } {
   const logFile = `${logDir}/worker-${args[0]}-${Date.now()}.log`;
   const fs = require("fs");
   fs.mkdirSync(logDir, { recursive: true });
+
+  // Immediate diagnostic marker
+  fs.writeFileSync(`${logDir}/last-spawn-${args[0]}.txt`, `pid=unknown\ncwd=${process.cwd()}\ncmd=npx tsx scripts/process-drive-queue.ts ${args.join(" ")}\nstarted=${new Date().toISOString()}\n`);
+
   const out = fs.openSync(logFile, "a");
   const err = fs.openSync(logFile, "a");
   const child = spawn("npx", ["tsx", "scripts/process-drive-queue.ts", ...args], {
     detached: true,
     stdio: ["ignore", out, err],
     env: process.env,
+    cwd: process.cwd(),
+  });
+  child.on("error", (e: Error) => {
+    fs.appendFileSync(logFile, `[spawn-error] ${e.message}\n`);
   });
   child.unref();
+
+  // Update marker with real pid
+  fs.writeFileSync(`${logDir}/last-spawn-${args[0]}.txt`, `pid=${child.pid}\ncwd=${process.cwd()}\ncmd=npx tsx scripts/process-drive-queue.ts ${args.join(" ")}\nstarted=${new Date().toISOString()}\n`);
+
   return { pid: child.pid!, logPath: logFile };
 }
 
@@ -678,7 +690,7 @@ export const driveRouter = createRouter({
       }
       const files = fs
         .readdirSync(logDir)
-        .filter((f: string) => f.endsWith(".log"))
+        .filter((f: string) => f.endsWith(".log") || f.endsWith(".txt"))
         .map((f: string) => ({
           name: f,
           path: path.join(logDir, f),
