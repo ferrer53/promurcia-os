@@ -232,14 +232,14 @@ export async function getQueueCounts(): Promise<{
 
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return {
-    total,
-    pending: counts.pending || 0,
-    analyzing: counts.analyzing || 0,
-    analyzed: counts.analyzed || 0,
-    importing: counts.importing || 0,
-    imported: counts.imported || 0,
-    error: counts.error || 0,
-    skipped: counts.skipped || 0,
+    total: Number(total),
+    pending: Number(counts.pending || 0),
+    analyzing: Number(counts.analyzing || 0),
+    analyzed: Number(counts.analyzed || 0),
+    importing: Number(counts.importing || 0),
+    imported: Number(counts.imported || 0),
+    error: Number(counts.error || 0),
+    skipped: Number(counts.skipped || 0),
   };
 }
 
