@@ -9,7 +9,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        value: file:./promurcia.db
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: SESSION_SECRET
