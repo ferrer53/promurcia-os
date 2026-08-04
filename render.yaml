@@ -26,3 +26,7 @@ services:
         sync: false
       - key: GOOGLE_PROJECT_ID
         sync: false
+      - key: DRIVE_WORKER_ENABLED
+        value: "true"
+      - key: DRIVE_WORKER_INTERVAL_MS
+        value: "30000"

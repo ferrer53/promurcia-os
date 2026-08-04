@@ -220,14 +220,14 @@ export async function getQueueCounts(): Promise<{
   const rows = await db
     .select({
       status: driveImportQueue.status,
-      count: sql<number>`count(*)`,
+      count: sql<number>`count(*)::int`,
     })
     .from(driveImportQueue)
     .groupBy(driveImportQueue.status);
 
   const counts: Record<string, number> = {};
   for (const row of rows) {
-    counts[row.status] = row.count;
+    counts[row.status] = Number(row.count) || 0;
   }
 
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
