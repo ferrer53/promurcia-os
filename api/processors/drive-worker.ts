@@ -7,7 +7,6 @@
  * CRM entities, surviving redeploys because it is part of the main process.
  */
 
-import { sql } from "drizzle-orm";
 import { db } from "../../db/connection";
 import {
   getNextPendingItem,
@@ -30,7 +29,6 @@ import {
 } from "./drive-ai-analyzer";
 import { importAnalyzedDriveFile } from "./drive-importer";
 
-const WORKER_ADVISORY_LOCK_ID = 975318642;
 const DEFAULT_PROCESS_INTERVAL_MS = 3_000;
 const DEFAULT_EMPTY_INTERVAL_MS = 30_000;
 const DEFAULT_EMPTY_BACKOFF_MAX_MS = 5 * 60 * 1_000;
@@ -216,8 +214,12 @@ export async function runDriveWorkerLoop(options: DriveWorkerOptions = {}): Prom
 }
 
 /**
- * Acquire a PostgreSQL advisory lock and, if successful, start the worker loop.
+ * Start the worker loop if enabled.
  * Called once from the web server boot sequence.
+ *
+ * Note: in the current Render free setup there is only one web instance, so a
+ * simple in-process guard is enough. If the app is ever scaled horizontally,
+ * replace this with a persistent lease table.
  */
 export async function startDriveWorkerIfEnabled(): Promise<void> {
   if (workerStarted) {
@@ -230,31 +232,22 @@ export async function startDriveWorkerIfEnabled(): Promise<void> {
     return;
   }
 
-  try {
-    const lockResult = await db.execute(
-      sql`SELECT pg_try_advisory_lock(${WORKER_ADVISORY_LOCK_ID}) AS locked`
-    );
-    const locked = (lockResult.rows[0] as { locked: boolean } | undefined)?.locked;
-    if (!locked) {
-      defaultLogger.log("Otro proceso ya tiene el lock del worker; no se inicia una segunda instancia");
-      return;
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    defaultLogger.log("No se pudo adquirir el advisory lock del worker", { error: msg });
-    return;
-  }
-
   workerStarted = true;
-  defaultLogger.log("Worker de Drive habilitado y lock adquirido");
+  defaultLogger.log("Worker de Drive habilitado");
 
-  // Run detached from the current async context so server boot is not blocked.
+  // Defer a few seconds so the server finishes booting before the worker
+  // starts consuming DB cycles.
+  const startDelayMs = process.env.DRIVE_WORKER_START_DELAY_MS
+    ? parseInt(process.env.DRIVE_WORKER_START_DELAY_MS, 10)
+    : 5_000;
   const intervalMs = process.env.DRIVE_WORKER_INTERVAL_MS
     ? parseInt(process.env.DRIVE_WORKER_INTERVAL_MS, 10)
     : undefined;
 
-  runDriveWorkerLoop({ emptyIntervalMs: intervalMs }).catch((err) => {
-    const msg = err instanceof Error ? err.message : String(err);
-    defaultLogger.log("El bucle del worker terminó inesperadamente", { error: msg });
-  });
+  setTimeout(() => {
+    runDriveWorkerLoop({ emptyIntervalMs: intervalMs }).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      defaultLogger.log("El bucle del worker terminó inesperadamente", { error: msg });
+    });
+  }, startDelayMs);
 }
