@@ -28,6 +28,12 @@ import {
   type DriveAIAnalysis,
 } from "./drive-ai-analyzer";
 import { importAnalyzedDriveFile } from "./drive-importer";
+import {
+  discoverDriveFiles,
+  loadDiscoveryState,
+  saveDiscoveryState,
+  type DiscoveryState,
+} from "./drive-discovery";
 
 const DEFAULT_PROCESS_INTERVAL_MS = 3_000;
 const DEFAULT_EMPTY_INTERVAL_MS = 30_000;
@@ -35,6 +41,10 @@ const DEFAULT_EMPTY_BACKOFF_MAX_MS = 5 * 60 * 1_000;
 const DEFAULT_FILE_TIMEOUT_MS = 5 * 60 * 1_000;
 
 let workerStarted = false;
+let discoveryStarted = false;
+
+const DEFAULT_DISCOVERY_INTERVAL_MS = 10_000;
+const DEFAULT_DISCOVERY_RESTART_INTERVAL_MS = 60 * 60 * 1_000; // 1 hour
 
 export interface WorkerLogger {
   log: (message: string, data?: Record<string, unknown>) => void;
@@ -248,6 +258,104 @@ export async function startDriveWorkerIfEnabled(): Promise<void> {
     runDriveWorkerLoop({ emptyIntervalMs: intervalMs }).catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       defaultLogger.log("El bucle del worker terminó inesperadamente", { error: msg });
+    });
+  }, startDelayMs);
+}
+
+/**
+ * Run one page of Drive discovery and persist the state.
+ * Returns true if there are more pages to scan.
+ */
+export async function runDiscoveryPage(logger: WorkerLogger = defaultLogger): Promise<boolean> {
+  const state = await loadDiscoveryState();
+  logger.log("Descubriendo página de Drive", {
+    pageToken: state.pageToken ? "yes" : "no",
+    totalScanned: state.totalScanned,
+    totalEnqueued: state.totalEnqueued,
+  });
+
+  const result = await discoverDriveFiles(state.pageToken, 100);
+  const newState: DiscoveryState = {
+    pageToken: result.nextPageToken || undefined,
+    totalScanned: state.totalScanned + result.scanned,
+    totalEnqueued: state.totalEnqueued + result.enqueued,
+  };
+
+  await saveDiscoveryState(newState);
+
+  logger.log("Página de Drive descubierta", {
+    scanned: result.scanned,
+    enqueued: result.enqueued,
+    totalScanned: newState.totalScanned,
+    totalEnqueued: newState.totalEnqueued,
+    hasMore: !!result.nextPageToken,
+  });
+
+  return !!result.nextPageToken;
+}
+
+/**
+ * Continuously discover Drive files in the background.
+ * Scans one page at a time to respect Google API rate limits and keep the
+ * processing queue fed with real files. Restarts from the beginning every
+ * hour once the full Drive has been scanned.
+ */
+export async function runDriveDiscoveryLoop(
+  logger: WorkerLogger = defaultLogger,
+  options: { intervalMs?: number; restartIntervalMs?: number } = {}
+): Promise<void> {
+  const intervalMs = options.intervalMs ?? DEFAULT_DISCOVERY_INTERVAL_MS;
+  const restartIntervalMs = options.restartIntervalMs ?? DEFAULT_DISCOVERY_RESTART_INTERVAL_MS;
+
+  logger.log("Iniciando bucle de descubrimiento de Drive");
+
+  while (true) {
+    try {
+      const hasMore = await runDiscoveryPage(logger);
+      if (!hasMore) {
+        logger.log("Descubrimiento de Drive completado; reiniciando en 1 hora para detectar novedades");
+        await saveDiscoveryState({ totalScanned: 0, totalEnqueued: 0, completedAt: new Date() });
+        await sleep(restartIntervalMs);
+      } else {
+        await sleep(intervalMs);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.log("Error en descubrimiento de Drive", { error: msg });
+      await sleep(intervalMs);
+    }
+  }
+}
+
+/**
+ * Start the Drive discovery loop if enabled.
+ * Called once from the web server boot sequence.
+ */
+export async function startDriveDiscoveryIfEnabled(): Promise<void> {
+  if (discoveryStarted) {
+    defaultLogger.log("Descubrimiento ya está iniciado en este proceso");
+    return;
+  }
+
+  if (process.env.DRIVE_DISCOVERY_ENABLED !== "true") {
+    defaultLogger.log("Descubrimiento deshabilitado (DRIVE_DISCOVERY_ENABLED no es 'true')");
+    return;
+  }
+
+  discoveryStarted = true;
+  defaultLogger.log("Descubrimiento de Drive habilitado");
+
+  const startDelayMs = process.env.DRIVE_DISCOVERY_START_DELAY_MS
+    ? parseInt(process.env.DRIVE_DISCOVERY_START_DELAY_MS, 10)
+    : 10_000;
+  const intervalMs = process.env.DRIVE_DISCOVERY_INTERVAL_MS
+    ? parseInt(process.env.DRIVE_DISCOVERY_INTERVAL_MS, 10)
+    : undefined;
+
+  setTimeout(() => {
+    runDriveDiscoveryLoop(defaultLogger, { intervalMs }).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      defaultLogger.log("El bucle de descubrimiento terminó inesperadamente", { error: msg });
     });
   }, startDelayMs);
 }

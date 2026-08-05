@@ -30,3 +30,7 @@ services:
         value: "true"
       - key: DRIVE_WORKER_INTERVAL_MS
         value: "30000"
+      - key: DRIVE_DISCOVERY_ENABLED
+        value: "true"
+      - key: DRIVE_DISCOVERY_INTERVAL_MS
+        value: "10000"

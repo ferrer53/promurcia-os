@@ -1,13 +1,17 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Client } from "pg";
+import { Pool } from "pg";
 import * as schema from "./schema";
 import * as relations from "./relations";
 
-const client = new Client({
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false,
   },
+  // Render free plan: keep a small pool to avoid exhausting Postgres connections.
+  max: parseInt(process.env.DATABASE_POOL_MAX || "5", 10),
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 10_000,
 });
-await client.connect();
-export const db = drizzle(client, { schema: { ...schema, ...relations } });
+
+export const db = drizzle(pool, { schema: { ...schema, ...relations } });

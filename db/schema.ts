@@ -562,5 +562,17 @@ export const driveImportQueue = pgTable("crm_driveImportQueue", {
   updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const driveDiscoveryState = pgTable("crm_driveDiscoveryState", {
+  id: serial("id").primaryKey(),
+  pageToken: text("pageToken"),
+  totalScanned: integer("totalScanned").default(0),
+  totalEnqueued: integer("totalEnqueued").default(0),
+  completedAt: timestamp("completedAt", { withTimezone: true }),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type DriveDiscoveryState = typeof driveDiscoveryState.$inferSelect;
+export type InsertDriveDiscoveryState = typeof driveDiscoveryState.$inferInsert;
+
 export type DriveImportQueue = typeof driveImportQueue.$inferSelect;
 export type InsertDriveImportQueue = typeof driveImportQueue.$inferInsert;

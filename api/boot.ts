@@ -5,7 +5,10 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { createContext } from "./context";
 import { env } from "./lib/env";
-import { startDriveWorkerIfEnabled } from "./processors/drive-worker";
+import {
+  startDriveWorkerIfEnabled,
+  startDriveDiscoveryIfEnabled,
+} from "./processors/drive-worker";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -37,5 +40,11 @@ if (env.isProduction) {
   // and survives redeploys because it is part of the main process.
   startDriveWorkerIfEnabled().catch((err) => {
     console.error("Failed to start Drive worker:", err);
+  });
+
+  // Start the Drive discovery loop in parallel so the queue keeps being fed
+  // with real files while the worker processes them.
+  startDriveDiscoveryIfEnabled().catch((err) => {
+    console.error("Failed to start Drive discovery:", err);
   });
 }

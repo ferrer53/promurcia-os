@@ -3,6 +3,9 @@
  */
 
 import { google } from "googleapis";
+import { eq } from "drizzle-orm";
+import { db } from "../../db/connection";
+import { driveDiscoveryState } from "../../db/schema";
 import { GOOGLE_CONFIG, withGoogleRetry } from "../google/config";
 import { upsertQueueItem, type DriveQueueItemInput } from "./drive-queue";
 
@@ -61,6 +64,54 @@ export interface DiscoveryResult {
   enqueued: number;
   updated: number;
   nextPageToken: string | null;
+}
+
+export interface DiscoveryState {
+  pageToken?: string;
+  totalScanned: number;
+  totalEnqueued: number;
+  completedAt?: Date;
+}
+
+const STATE_ID = 1;
+
+/**
+ * Load the persisted discovery state from PostgreSQL.
+ */
+export async function loadDiscoveryState(): Promise<DiscoveryState> {
+  const row = await db.query.driveDiscoveryState.findFirst({
+    where: eq(driveDiscoveryState.id, STATE_ID),
+  });
+  if (!row) {
+    return { totalScanned: 0, totalEnqueued: 0 };
+  }
+  return {
+    pageToken: row.pageToken || undefined,
+    totalScanned: row.totalScanned || 0,
+    totalEnqueued: row.totalEnqueued || 0,
+    completedAt: row.completedAt || undefined,
+  };
+}
+
+/**
+ * Persist the discovery state to PostgreSQL.
+ */
+export async function saveDiscoveryState(state: DiscoveryState): Promise<void> {
+  const existing = await db.query.driveDiscoveryState.findFirst({
+    where: eq(driveDiscoveryState.id, STATE_ID),
+  });
+  const values = {
+    pageToken: state.pageToken || null,
+    totalScanned: state.totalScanned,
+    totalEnqueued: state.totalEnqueued,
+    completedAt: state.completedAt || null,
+    updatedAt: new Date(),
+  };
+  if (existing) {
+    await db.update(driveDiscoveryState).set(values).where(eq(driveDiscoveryState.id, STATE_ID));
+  } else {
+    await db.insert(driveDiscoveryState).values({ id: STATE_ID, ...values });
+  }
 }
 
 /**
