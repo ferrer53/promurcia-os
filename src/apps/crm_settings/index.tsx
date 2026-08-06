@@ -23,8 +23,6 @@ const SECTIONS: Section[] = [
   { id: 'automatizaciones', label: 'Automatizaciones', icon: Bot },
   { id: 'control', label: 'Control Operativo', icon: SlidersHorizontal },
   { id: 'seguridad', label: 'Seguridad', icon: Shield },
-  { id: 'backups', label: 'Backups', icon: Database },
-  { id: 'email', label: 'Email Poller', icon: Mail },
 ];
 
 const ROLES = [
@@ -87,8 +85,7 @@ export default function CRMSettings() {
           {activeSection === 'automatizaciones' && <AutomationSection key="auto" isAdmin={isAdmin} />}
           {activeSection === 'control' && <ControlSection key="ctrl" isAdmin={isAdmin} />}
           {activeSection === 'seguridad' && <SecuritySection key="sec" isAdmin={isAdmin} />}
-          {activeSection === 'backups' && <BackupsSection key="bkp" isAdmin={isAdmin} />}
-          {activeSection === 'email' && <EmailSection key="email" isAdmin={isAdmin} />}
+
         </AnimatePresence>
       </div>
     </div>

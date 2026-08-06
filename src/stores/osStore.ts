@@ -105,10 +105,10 @@ export const useOSStore = create<OSState>((set, get) => ({
   },
 
   desktopIcons: [
-    { id: 'icon-1', appId: 'cerebro_crm', label: 'Cerebro Promurcia', x: 20, y: 20 },
-    { id: 'icon-2', appId: 'filemanager', label: 'Archivos', x: 20, y: 110 },
-    { id: 'icon-3', appId: 'browser', label: 'Navegador', x: 20, y: 200 },
-    { id: 'icon-4', appId: 'settings', label: 'Ajustes', x: 20, y: 290 },
+    { id: 'icon-1', appId: 'crm_dashboard', label: 'CRM Panel', x: 20, y: 20 },
+    { id: 'icon-2', appId: 'crm_leads', label: 'CRM Leads', x: 20, y: 110 },
+    { id: 'icon-3', appId: 'drive_sync', label: 'Drive Sync IA', x: 20, y: 200 },
+    { id: 'icon-4', appId: 'document_import', label: 'Importar Documentos', x: 20, y: 290 },
   ],
 
   // Actions

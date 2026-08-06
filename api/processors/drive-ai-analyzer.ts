@@ -309,6 +309,44 @@ function cleanAnalysis(raw: any): DriveAIAnalysis {
   };
 }
 
+async function parseOpenAIResponse(rawContent: string): Promise<DriveAIAnalysis> {
+  const parsed = JSON.parse(rawContent || "{}");
+  return cleanAnalysis(parsed);
+}
+
+async function callOpenAIWithRetry(
+  fileName: string,
+  messages: any[],
+  options: { maxTokens: number; model: string }
+): Promise<DriveAIAnalysis> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const response = await openai.chat.completions.create({
+        model: options.model,
+        messages,
+        temperature: 0.2,
+        max_tokens: options.maxTokens,
+        response_format: { type: "json_object" },
+      });
+
+      const rawContent = response.choices[0]?.message?.content || "{}";
+      return await parseOpenAIResponse(rawContent);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // If the JSON was truncated, retry with more output tokens.
+      if (lastError.message.includes("JSON") || lastError.message.includes("token")) {
+        options.maxTokens = Math.min(options.maxTokens + 4000, 16000);
+        continue;
+      }
+      throw lastError;
+    }
+  }
+
+  throw lastError;
+}
+
 /**
  * Analyze text content with OpenAI.
  */
@@ -319,24 +357,14 @@ export async function analyzeDriveContent(
 ): Promise<DriveAIAnalysis> {
   const prompt = `${BASE_SYSTEM_PROMPT}\n\n--- ARCHIVO: ${fileName} ---\nTIPO: ${mimeType}\n\nCONTENIDO:\n${content.text}`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content:
-          "Eres un asistente experto en análisis de datos inmobiliarios españoles. Extraes información estructurada de documentos desorganizados. Responde SIEMPRE en JSON válido.",
-      },
-      { role: "user", content: prompt },
-    ],
-    temperature: 0.2,
-    max_tokens: 4000,
-    response_format: { type: "json_object" },
-  });
-
-  const rawContent = response.choices[0]?.message?.content || "{}";
-  const parsed = JSON.parse(rawContent);
-  return cleanAnalysis(parsed);
+  return callOpenAIWithRetry(fileName, [
+    {
+      role: "system",
+      content:
+        "Eres un asistente experto en análisis de datos inmobiliarios españoles. Extraes información estructurada de documentos desorganizados. Responde SIEMPRE en JSON válido y lo más compacto posible.",
+    },
+    { role: "user", content: prompt },
+  ], { maxTokens: 8000, model: "gpt-4o-mini" });
 }
 
 /**
@@ -350,36 +378,26 @@ export async function analyzeDriveImage(
   const base64 = imageBuffer.toString("base64");
   const dataUri = `data:${mimeType};base64,${base64}`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "system",
-        content:
-          "Eres un experto en inmobiliaria española. Analiza imágenes de documentos, fotos de inmuebles o capturas de pantalla y extrae información estructurada. Responde SIEMPRE en JSON válido.",
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: `${BASE_SYSTEM_PROMPT}\n\n--- IMAGEN: ${fileName} ---\nTIPO: ${mimeType}\n\nDescribe el contenido y extrae cualquier dato inmobiliario, teléfono, dirección, precio, referencia o persona visible.`,
-          },
-          {
-            type: "image_url",
-            image_url: { url: dataUri, detail: "auto" },
-          },
-        ],
-      },
-    ],
-    temperature: 0.2,
-    max_tokens: 4000,
-    response_format: { type: "json_object" },
-  });
-
-  const rawContent = response.choices[0]?.message?.content || "{}";
-  const parsed = JSON.parse(rawContent);
-  return cleanAnalysis(parsed);
+  return callOpenAIWithRetry(fileName, [
+    {
+      role: "system",
+      content:
+        "Eres un experto en inmobiliaria española. Analiza imágenes de documentos, fotos de inmuebles o capturas de pantalla y extrae información estructurada. Responde SIEMPRE en JSON válido.",
+    },
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: `${BASE_SYSTEM_PROMPT}\n\n--- IMAGEN: ${fileName} ---\nTIPO: ${mimeType}\n\nDescribe el contenido y extrae cualquier dato inmobiliario, teléfono, dirección, precio, referencia o persona visible.`,
+        },
+        {
+          type: "image_url",
+          image_url: { url: dataUri, detail: "auto" },
+        },
+      ],
+    },
+  ], { maxTokens: 4000, model: "gpt-4o" });
 }
 
 /**
@@ -393,22 +411,12 @@ export async function analyzeDriveAudio(
 ): Promise<DriveAIAnalysis> {
   const prompt = `${BASE_SYSTEM_PROMPT}\n\n--- AUDIO TRANSCRITO: ${fileName} ---\nTIPO: ${mimeType}\nDURACIÓN: ${duration || 0}s\n\nTRANSCRIPCIÓN:\n${transcript}`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content:
-          "Eres un asistente experto en análisis de conversaciones inmobiliarias. Extraes información estructurada de transcripciones de llamadas o audios. Responde SIEMPRE en JSON válido.",
-      },
-      { role: "user", content: prompt },
-    ],
-    temperature: 0.2,
-    max_tokens: 4000,
-    response_format: { type: "json_object" },
-  });
-
-  const rawContent = response.choices[0]?.message?.content || "{}";
-  const parsed = JSON.parse(rawContent);
-  return cleanAnalysis(parsed);
+  return callOpenAIWithRetry(fileName, [
+    {
+      role: "system",
+      content:
+        "Eres un asistente experto en análisis de conversaciones inmobiliarias. Extraes información estructurada de transcripciones de llamadas o audios. Responde SIEMPRE en JSON válido.",
+    },
+    { role: "user", content: prompt },
+  ], { maxTokens: 4000, model: "gpt-4o-mini" });
 }
