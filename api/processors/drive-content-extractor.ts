@@ -3,10 +3,45 @@
  */
 
 import { google } from "googleapis";
+import { File } from "node:buffer";
+import OpenAI from "openai";
 import { GOOGLE_CONFIG, withGoogleRetry } from "../google/config";
-import { speechService } from "../google/speech-service"; // assumed existing
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "" });
 
 const MAX_TEXT_LENGTH = 25000;
+const MAX_WHISPER_FILE_BYTES = 25 * 1024 * 1024;
+
+async function transcribeWithWhisper(
+  buffer: Buffer,
+  mimeType: string,
+  fileName: string
+): Promise<{ transcript: string; duration: number }> {
+  if (buffer.length > MAX_WHISPER_FILE_BYTES) {
+    throw new Error(
+      `Archivo de audio demasiado grande (${(buffer.length / 1024 / 1024).toFixed(1)} MB). Máximo para Whisper: 25 MB.`
+    );
+  }
+
+  // Whisper infiere el formato a partir de la extensión; conservamos la extensión original.
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.+/g, ".") || "audio.mp3";
+  const file = new File([buffer], safeName, { type: mimeType });
+
+  const result = await openai.audio.transcriptions.create({
+    file,
+    model: "whisper-1",
+    language: "es",
+    response_format: "json",
+  });
+
+  // Whisper no devuelve duración. Estimamos muy aproximadamente para MP3 a 128 kbps.
+  const estimatedDuration = Math.round((buffer.length * 8) / 128000);
+
+  return {
+    transcript: result.text || "",
+    duration: Math.max(0, estimatedDuration),
+  };
+}
 
 function parseServiceAccountKey(keyJson: string): any {
   const trimmed = keyJson.trim();
@@ -149,10 +184,10 @@ export async function extractDriveContent(
     return { text, buffer, mimeType, isImage: false, isAudio: false };
   }
 
-  // Audio
+  // Audio — transcribe with OpenAI Whisper
   if (isAudio(mimeType)) {
     const buffer = await downloadBinary(fileId);
-    const result = await speechService.transcribeSmart(buffer, mimeType);
+    const result = await transcribeWithWhisper(buffer, mimeType, `audio-${fileId}`);
     return {
       text: result.transcript.slice(0, MAX_TEXT_LENGTH),
       buffer,
