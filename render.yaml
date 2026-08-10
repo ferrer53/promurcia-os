@@ -34,3 +34,9 @@ services:
         value: "true"
       - key: DRIVE_DISCOVERY_INTERVAL_MS
         value: "10000"
+      - key: AUDIO_WORKER_ENABLED
+        value: "true"
+      - key: AUDIO_WORKER_INTERVAL_MS
+        value: "30000"
+      - key: AUDIO_WORKER_START_DELAY_MS
+        value: "15000"

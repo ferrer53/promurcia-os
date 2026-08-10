@@ -8,6 +8,7 @@ import { env } from "./lib/env";
 import {
   startDriveWorkerIfEnabled,
   startDriveDiscoveryIfEnabled,
+  startAudioWorkerIfEnabled,
 } from "./processors/drive-worker";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
@@ -46,5 +47,10 @@ if (env.isProduction) {
   // with real files while the worker processes them.
   startDriveDiscoveryIfEnabled().catch((err) => {
     console.error("Failed to start Drive discovery:", err);
+  });
+
+  // Start the dedicated audio transcription worker if enabled.
+  startAudioWorkerIfEnabled().catch((err) => {
+    console.error("Failed to start audio worker:", err);
   });
 }

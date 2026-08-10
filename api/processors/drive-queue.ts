@@ -114,6 +114,23 @@ export async function bulkUpsertQueueItems(inputs: DriveQueueItemInput[]): Promi
   };
 }
 
+export const AUDIO_MIME_TYPES = [
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/ogg",
+  "audio/opus",
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/flac",
+  "audio/x-flac",
+];
+
+function isAudioMimeType(mimeType: string): boolean {
+  return AUDIO_MIME_TYPES.includes(mimeType);
+}
+
 /**
  * Pick the next file to process.
  * Priority: pending first, then error with retryCount < 3.
@@ -144,6 +161,29 @@ export async function getNextPendingItem(): Promise<typeof driveImportQueue.$inf
       )
     )
     .orderBy(asc(priorityOrder), asc(driveImportQueue.createdAt))
+    .limit(1);
+
+  return items[0] || null;
+}
+
+/**
+ * Pick the next pending audio file to transcribe.
+ * Only selects audio MIME types, ignoring the document/image priority queue.
+ */
+export async function getNextAudioItem(): Promise<typeof driveImportQueue.$inferSelect | null> {
+  const items = await db
+    .select()
+    .from(driveImportQueue)
+    .where(
+      and(
+        or(
+          eq(driveImportQueue.status, "pending"),
+          and(eq(driveImportQueue.status, "error"), sql`${driveImportQueue.retryCount} < 3`)
+        ),
+        sql`${driveImportQueue.mimeType} = ANY(${AUDIO_MIME_TYPES})`
+      )
+    )
+    .orderBy(asc(driveImportQueue.createdAt))
     .limit(1);
 
   return items[0] || null;

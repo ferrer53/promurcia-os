@@ -10,6 +10,7 @@
 import { db } from "../../db/connection";
 import {
   getNextPendingItem,
+  getNextAudioItem,
   updateQueueItem,
   markImported,
   markError,
@@ -73,16 +74,10 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, context: string):
   }
 }
 
-/**
- * Process a single pending Drive file end-to-end.
- * Returns `true` if a file was processed (success or failure), `false` if the queue is empty.
- */
-export async function processOneDriveFile(logger: WorkerLogger = defaultLogger): Promise<boolean> {
-  const item = await getNextPendingItem();
-  if (!item) {
-    return false;
-  }
-
+async function processQueueItem(
+  item: Awaited<ReturnType<typeof getNextPendingItem>> & NonNullable<unknown>,
+  logger: WorkerLogger = defaultLogger
+): Promise<boolean> {
   logger.log(`Procesando archivo`, {
     id: item.id,
     driveFileId: item.driveFileId,
@@ -176,6 +171,26 @@ export async function processOneDriveFile(logger: WorkerLogger = defaultLogger):
     await markError(item.id, msg);
     return true;
   }
+}
+
+/**
+ * Process a single pending Drive file end-to-end.
+ * Returns `true` if a file was processed (success or failure), `false` if the queue is empty.
+ */
+export async function processOneDriveFile(logger: WorkerLogger = defaultLogger): Promise<boolean> {
+  const item = await getNextPendingItem();
+  if (!item) return false;
+  return processQueueItem(item, logger);
+}
+
+/**
+ * Process a single pending audio file end-to-end.
+ * Returns `true` if an audio was processed (success or failure), `false` if no audio is pending.
+ */
+export async function processOneAudioFile(logger: WorkerLogger = defaultLogger): Promise<boolean> {
+  const item = await getNextAudioItem();
+  if (!item) return false;
+  return processQueueItem(item, logger);
 }
 
 export interface DriveWorkerOptions {
@@ -356,6 +371,78 @@ export async function startDriveDiscoveryIfEnabled(): Promise<void> {
     runDriveDiscoveryLoop(defaultLogger, { intervalMs }).catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       defaultLogger.log("El bucle de descubrimiento terminó inesperadamente", { error: msg });
+    });
+  }, startDelayMs);
+}
+
+// ─── Audio-only worker ─────────────────────────────────────────────────
+
+let audioWorkerStarted = false;
+
+const DEFAULT_AUDIO_WORKER_INTERVAL_MS = 30_000;
+const DEFAULT_AUDIO_WORKER_START_DELAY_MS = 15_000;
+const DEFAULT_AUDIO_EMPTY_INTERVAL_MS = 60_000;
+
+/**
+ * Run a dedicated loop that only processes audio files.
+ * This prevents long audio transcriptions from blocking structured documents.
+ */
+export async function runAudioWorkerLoop(options: DriveWorkerOptions = {}): Promise<void> {
+  const processIntervalMs = options.processIntervalMs ?? DEFAULT_AUDIO_WORKER_INTERVAL_MS;
+  const emptyIntervalMs = options.emptyBackoffMaxMs ?? DEFAULT_AUDIO_EMPTY_INTERVAL_MS;
+  const logger = options.logger ?? defaultLogger;
+
+  logger.log("Iniciando bucle de procesamiento de audios");
+  let consecutiveEmpty = 0;
+
+  while (true) {
+    try {
+      const processed = await processOneAudioFile(logger);
+      if (!processed) {
+        consecutiveEmpty++;
+        const waitMs = Math.min(emptyIntervalMs * consecutiveEmpty, 5 * 60 * 1_000);
+        logger.log(`No hay audios pendientes, esperando ${Math.round(waitMs / 1000)}s`);
+        await sleep(waitMs);
+      } else {
+        consecutiveEmpty = 0;
+        await sleep(processIntervalMs);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.log(`Error crítico en el worker de audio`, { error: msg });
+      await sleep(emptyIntervalMs);
+    }
+  }
+}
+
+/**
+ * Start the dedicated audio worker if enabled.
+ */
+export async function startAudioWorkerIfEnabled(): Promise<void> {
+  if (audioWorkerStarted) {
+    defaultLogger.log("Worker de audio ya está iniciado en este proceso");
+    return;
+  }
+
+  if (process.env.AUDIO_WORKER_ENABLED !== "true") {
+    defaultLogger.log("Worker de audio deshabilitado (AUDIO_WORKER_ENABLED no es 'true')");
+    return;
+  }
+
+  audioWorkerStarted = true;
+  defaultLogger.log("Worker de audio habilitado");
+
+  const startDelayMs = process.env.AUDIO_WORKER_START_DELAY_MS
+    ? parseInt(process.env.AUDIO_WORKER_START_DELAY_MS, 10)
+    : DEFAULT_AUDIO_WORKER_START_DELAY_MS;
+  const intervalMs = process.env.AUDIO_WORKER_INTERVAL_MS
+    ? parseInt(process.env.AUDIO_WORKER_INTERVAL_MS, 10)
+    : undefined;
+
+  setTimeout(() => {
+    runAudioWorkerLoop({ processIntervalMs: intervalMs }).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      defaultLogger.log("El bucle del worker de audio terminó inesperadamente", { error: msg });
     });
   }, startDelayMs);
 }
