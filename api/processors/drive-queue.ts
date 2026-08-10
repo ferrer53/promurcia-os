@@ -3,7 +3,7 @@
  * Tracks every file from discovery through analysis to final import.
  */
 
-import { eq, and, or, sql, desc, asc } from "drizzle-orm";
+import { eq, and, or, inArray, sql, desc, asc } from "drizzle-orm";
 import { db } from "../../db/connection";
 import { driveImportQueue, type InsertDriveImportQueue } from "../../db/schema";
 
@@ -180,7 +180,7 @@ export async function getNextAudioItem(): Promise<typeof driveImportQueue.$infer
           eq(driveImportQueue.status, "pending"),
           and(eq(driveImportQueue.status, "error"), sql`${driveImportQueue.retryCount} < 3`)
         ),
-        sql`${driveImportQueue.mimeType} = ANY(${AUDIO_MIME_TYPES})`
+        inArray(driveImportQueue.mimeType, AUDIO_MIME_TYPES)
       )
     )
     .orderBy(asc(driveImportQueue.createdAt))
