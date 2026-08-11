@@ -10,6 +10,7 @@ import {
   startDriveDiscoveryIfEnabled,
   startAudioWorkerIfEnabled,
 } from "./processors/drive-worker";
+import { getQueueCounts } from "./processors/drive-queue";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -22,6 +23,16 @@ app.use("/api/trpc/*", async (c) => {
     createContext,
   });
 });
+app.get("/api/health", async (c) => {
+  const queue = await getQueueCounts();
+  return c.json({
+    status: "ok",
+    service: "promurcia-os",
+    timestamp: new Date().toISOString(),
+    queue,
+  });
+});
+
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
