@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "./middleware";
+import { createRouter, authedQuery } from "./middleware";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
@@ -79,7 +79,7 @@ Contenido a analizar:
 `;
 
 export const openaiRouter = createRouter({
-  analyzeDocument: publicQuery
+  analyzeDocument: authedQuery
     .input(
       z.object({
         fileName: z.string(),
@@ -162,7 +162,7 @@ export const openaiRouter = createRouter({
       }
     }),
 
-  analyzeBatch: publicQuery
+  analyzeBatch: authedQuery
     .input(
       z.object({
         documents: z.array(

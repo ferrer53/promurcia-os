@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, and, gte, lt } from "drizzle-orm";
 import { createTRPCRouter, readOnlyProcedure } from "../lib/trpc";
 import { db } from "../../db/connection";
 import { leads, properties, operations, tasks, interactions, alerts } from "../../db/schema";
@@ -37,7 +37,7 @@ export const dashboardRouter = createTRPCRouter({
     // Leads created today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const [leadsToday] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(sql`${leads.createdAt} >= ${today.getTime() / 1000}`);
+    const [leadsToday] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, today));
 
     // Conversion rate: converted leads / total leads
     const [convertedLeads] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(sql`${leads.status} = 'convertido'`);
@@ -91,7 +91,7 @@ export const dashboardRouter = createTRPCRouter({
       const nextMonth = new Date(d);
       nextMonth.setMonth(nextMonth.getMonth() + 1);
       const end = nextMonth.getTime() / 1000;
-      const [count] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(sql`${leads.createdAt} >= ${start} AND ${leads.createdAt} < ${end}`);
+      const [count] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, new Date(start * 1000)), lt(leads.createdAt, new Date(end * 1000))));
       months.push({ month: d.toLocaleDateString("es-ES", { month: "short" }), leads: count?.count ?? 0 });
     }
 

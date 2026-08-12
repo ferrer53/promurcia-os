@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery, adminQuery } from "./middleware";
+import { createRouter, authedQuery, adminQuery } from "./middleware";
 import { spawn } from "child_process";
 import OpenAI from "openai";
 import { runImportPipeline } from "./processors/import-pipeline";
@@ -124,7 +124,7 @@ function normalizePhone(phone: string): string {
 
 export const driveRouter = createRouter({
   // List files from Google Drive
-  listFiles: publicQuery
+  listFiles: authedQuery
     .input(
       z.object({
         folderId: z.string().optional(),
@@ -184,7 +184,7 @@ export const driveRouter = createRouter({
     }),
 
   // Get file content (for text-based files)
-  getFileContent: publicQuery
+  getFileContent: authedQuery
     .input(z.object({ fileId: z.string(), mimeType: z.string().optional() }))
     .query(async ({ input }) => {
       const startTime = Date.now();
@@ -261,7 +261,7 @@ export const driveRouter = createRouter({
     }),
 
   // Analyze file content with OpenAI
-  analyzeWithAI: publicQuery
+  analyzeWithAI: authedQuery
     .input(
       z.object({
         fileName: z.string(),
@@ -332,7 +332,7 @@ export const driveRouter = createRouter({
     }),
 
   // Full pipeline: list → extract → analyze
-  runExtractionPipeline: publicQuery
+  runExtractionPipeline: authedQuery
     .input(
       z.object({
         fileIds: z.array(z.string()).max(10),
@@ -439,7 +439,7 @@ export const driveRouter = createRouter({
     }),
 
   // Import selected Drive files into the CRM database
-  importFiles: publicQuery
+  importFiles: adminQuery
     .input(
       z.object({
         fileIds: z.array(z.string()).min(1),
@@ -536,7 +536,7 @@ export const driveRouter = createRouter({
     }),
 
   // Process all supported Drive files in batches
-  processBatch: publicQuery
+  processBatch: adminQuery
     .input(
       z.object({
         limit: z.number().min(1).max(50).default(20),

@@ -130,10 +130,10 @@ export default function CrmLeadsApp() {
           <option value="todos">Todos los estados</option>
           <option value="nuevo">Nuevo</option>
           <option value="contactado">Contactado</option>
-          <option value="cualificado">Cualificado</option>
-          <option value="reserva">Reserva</option>
-          <option value="vendido">Vendido</option>
-          <option value="perdido">Perdido</option>
+          <option value="calificado">Calificado</option>
+          <option value="en_segimiento">En seguimiento</option>
+          <option value="convertido">Convertido</option>
+          <option value="descartado">Descartado</option>
         </select>
 
         <select value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1); }}
@@ -158,8 +158,8 @@ export default function CrmLeadsApp() {
           <option value="cold">Cold</option>
         </select>
 
-        <button onClick={() => { classifyLead.mutate({ id: selectedLead?.id ?? 1 }); }}
-          disabled={classifyLead.isPending}
+        <button onClick={() => { if (selectedLead) classifyLead.mutate({ id: selectedLead.id }); }}
+          disabled={classifyLead.isPending || !selectedLead}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs transition-all duration-150 ml-auto disabled:opacity-50"
           style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.2)', height: 40 }}>
           <Brain size={14} /> {classifyLead.isPending ? 'Clasificando...' : 'Clasificar IA'}
@@ -373,7 +373,7 @@ function CreateLeadForm({ onSubmit, onCancel, isPending }: { onSubmit: (data: { 
           style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }}>
           <option value="compra">Compra</option>
           <option value="alquiler">Alquiler</option>
-          <option value="inversion">Inversion</option>
+          <option value="venta">Venta</option>
         </select>
       </div>
       <div>

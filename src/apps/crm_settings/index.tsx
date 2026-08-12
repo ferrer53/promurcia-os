@@ -1,12 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Settings, Bot, SlidersHorizontal, Shield, Database, Mail,
-  Clock, CheckCircle, XCircle, Key,
-  Save, RotateCcw, Wifi, WifiOff, Trash2, Download, Loader2, AlertCircle, X
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Settings, Bot, SlidersHorizontal, Shield, Clock, CheckCircle, XCircle, Loader2, X } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -104,12 +98,12 @@ function AutomationSection({ isAdmin }: { isAdmin: boolean }) {
   const autoSettings = (settingsList ?? []).filter(s => s.category === 'automation');
 
   const defaultAutomations = [
-    { id: 'risk', label: 'Deteccion de riesgos', desc: 'Analisis automatico de operaciones en riesgo cada 10 minutos', enabled: true, interval: '10 min' },
-    { id: 'briefing', label: 'Briefing diario', desc: 'Generacion automatica del informe ejecutivo cada manana', enabled: true, interval: '08:00' },
+    { id: 'risk', label: 'Deteccion de riesgos', desc: 'Analisis automatico de operaciones en riesgo cada 10 minutos', enabled: false, interval: '10 min' },
+    { id: 'briefing', label: 'Briefing diario', desc: 'Generacion automatica del informe ejecutivo cada manana', enabled: false, interval: '08:00' },
     { id: 'email_review', label: 'Revision de emails', desc: 'Escaneo de la bandeja de entrada para captura de leads', enabled: false, interval: '5 min' },
-    { id: 'auto_tasks', label: 'Auto-tareas por eventos', desc: 'Creacion automatica de tareas al cambiar de etapa', enabled: true, interval: '15 min' },
-    { id: 'sla_check', label: 'Verificacion SLA', desc: 'Comprobacion de incumplimientos de SLA en pipeline', enabled: true, interval: '30 min' },
-    { id: 'backup', label: 'Backup diario', desc: 'Copia de seguridad automatica de datos del CRM', enabled: true, interval: '03:00' },
+    { id: 'auto_tasks', label: 'Auto-tareas por eventos', desc: 'Creacion automatica de tareas al cambiar de etapa', enabled: false, interval: '15 min' },
+    { id: 'sla_check', label: 'Verificacion SLA', desc: 'Comprobacion de incumplimientos de SLA en pipeline', enabled: false, interval: '30 min' },
+    { id: 'backup', label: 'Backup diario', desc: 'Copia de seguridad automatica de datos del CRM', enabled: false, interval: '03:00' },
   ];
 
   const automations = defaultAutomations.map(def => {
@@ -132,6 +126,10 @@ function AutomationSection({ isAdmin }: { isAdmin: boolean }) {
         <div className="flex items-center justify-center py-10"><Loader2 size={24} color="#d4a853" className="animate-spin" /></div>
       ) : (
         <div className="space-y-3 max-w-2xl">
+          <div className="rounded-lg p-3 mb-4 text-[11px]" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#fbbf24' }}>
+            ⚠️ Los workers de automatizacion estan deshabilitados por defecto (ver render.yaml: DRIVE_WORKER_ENABLED=false, etc.).
+            Activar estos switches solo guarda un valor en base de datos; no ejecutara procesos en segundo plano hasta que se activen los workers.
+          </div>
           {automations.map((auto, i) => (
             <motion.div
               key={auto.id}
@@ -301,132 +299,4 @@ function SecuritySection({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-// ─── Backups Section ─────────────────────────────────────────────────
 
-function BackupsSection({ isAdmin }: { isAdmin: boolean }) {
-  const [backups] = useState([
-    { id: 1, date: '2026-02-14 03:00', size: '245 MB', status: 'ok', type: 'Automatico' },
-    { id: 2, date: '2026-02-13 03:00', size: '243 MB', status: 'ok', type: 'Automatico' },
-    { id: 3, date: '2026-02-12 03:00', size: '241 MB', status: 'ok', type: 'Automatico' },
-    { id: 4, date: '2026-02-11 15:30', size: '240 MB', status: 'manual', type: 'Manual' },
-    { id: 5, date: '2026-02-11 03:00', size: '240 MB', status: 'ok', type: 'Automatico' },
-  ]);
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-      <h2 className="text-lg font-semibold text-white mb-1">Backups</h2>
-      <p className="text-xs text-gray-400 mb-6">Historial de copias de seguridad</p>
-
-      <div className="max-w-2xl space-y-3">
-        <div className="flex items-center gap-3 mb-4">
-          {isAdmin && (
-            <Button size="sm" className="text-xs gap-1.5" style={{ background: '#d4a853', color: '#0a1628' }}>
-              <Download size={14} /> Backup Manual
-            </Button>
-          )}
-          <Button size="sm" variant="outline" className="text-xs gap-1.5">
-            <RotateCcw size={14} /> Restaurar
-          </Button>
-        </div>
-
-        {backups.map((bkp, i) => (
-          <motion.div key={bkp.id}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className="rounded-xl border border-white/[0.06] p-4 flex items-center gap-4"
-            style={{ background: '#111d32' }}
-          >
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: bkp.status === 'ok' ? 'rgba(34,197,94,0.1)' : 'rgba(59,130,246,0.1)' }}>
-              {bkp.status === 'ok' ? <CheckCircle size={16} color="#22c55e" /> : <Database size={16} color="#3b82f6" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-white">Backup {bkp.type}</span>
-                <Badge className="text-[9px] h-4 px-1" variant="outline" style={{ borderColor: bkp.status === 'ok' ? '#22c55e40' : '#3b82f640', color: bkp.status === 'ok' ? '#22c55e' : '#3b82f6' }}>
-                  {bkp.status === 'ok' ? 'OK' : 'Manual'}
-                </Badge>
-              </div>
-              <p className="text-[11px] text-gray-400 mt-0.5">{bkp.date} · {bkp.size}</p>
-            </div>
-            {isAdmin && (
-              <Button size="sm" variant="ghost" className="p-1.5 h-auto">
-                <Trash2 size={14} color="#4b5563" />
-              </Button>
-            )}
-          </motion.div>
-        ))}
-      </div>
-    </motion.div>
-  );
-}
-
-// ─── Email Section ───────────────────────────────────────────────────
-
-function EmailSection({ isAdmin }: { isAdmin: boolean }) {
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-      <h2 className="text-lg font-semibold text-white mb-1">Email Poller</h2>
-      <p className="text-xs text-gray-400 mb-6">Configuracion de captura de leads desde email</p>
-
-      <div className="max-w-xl space-y-4">
-        <div className="rounded-xl border border-white/[0.06] p-4" style={{ background: '#111d32' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'rgba(34,197,94,0.1)' }}>
-              <Wifi size={16} color="#22c55e" />
-            </div>
-            <div>
-              <span className="text-sm font-medium text-white">Estado del servicio</span>
-              <p className="text-[11px] text-gray-400">Conectado a leads@promurcia.es</p>
-            </div>
-            <Badge className="ml-auto text-[9px]" style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>
-              Activo
-            </Badge>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/[0.06] p-4 space-y-3" style={{ background: '#111d32' }}>
-          <div>
-            <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Servidor IMAP</label>
-            <Input value="imap.promurcia.es" readOnly className="text-xs" />
-          </div>
-          <div>
-            <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Puerto</label>
-            <Input value="993" readOnly className="text-xs w-24" />
-          </div>
-          <div>
-            <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Usuario</label>
-            <Input value="leads@promurcia.es" readOnly className="text-xs" />
-          </div>
-          <div>
-            <label className="text-xs font-medium mb-1 block" style={{ color: '#9ca3af' }}>Intervalo de lectura</label>
-            <Input value="5 minutos" readOnly className="text-xs w-32" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/[0.06] p-4" style={{ background: '#111d32' }}>
-          <h3 className="text-sm font-medium text-white mb-3">Reglas de procesamiento</h3>
-          <div className="space-y-2">
-            {[
-              { rule: 'idealista@ notificaciones', action: 'Crear lead automatico', active: true },
-              { rule: 'fotocasa@ contactos', action: 'Crear lead automatico', active: true },
-              { rule: 'whatsapp@ mensajes', action: 'Crear interaccion', active: true },
-              { rule: 'Spam detectado', action: 'Marcar como spam', active: false },
-            ].map((r, i) => (
-              <div key={i} className="flex items-center justify-between p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                <div className="flex items-center gap-2">
-                  <Mail size={12} color={r.active ? '#3b82f6' : '#6b7280'} />
-                  <span className="text-xs" style={{ color: '#d1d5db' }}>{r.rule}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px]" style={{ color: '#6b7280' }}>{r.action}</span>
-                  {r.active ? <CheckCircle size={12} color="#22c55e" /> : <XCircle size={12} color="#4b5563" />}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
