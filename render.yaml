@@ -26,16 +26,18 @@ services:
         sync: false
       - key: GOOGLE_PROJECT_ID
         sync: false
+      # IMPORTANTE: los workers están DESHABILITADOS para evitar gasto continuo de API.
+      # El sistema ahora funciona bajo demanda desde la UI.
       - key: DRIVE_WORKER_ENABLED
-        value: "true"
+        value: "false"
       - key: DRIVE_WORKER_INTERVAL_MS
         value: "30000"
       - key: DRIVE_DISCOVERY_ENABLED
-        value: "true"
+        value: "false"
       - key: DRIVE_DISCOVERY_INTERVAL_MS
         value: "10000"
       - key: AUDIO_WORKER_ENABLED
-        value: "true"
+        value: "false"
       - key: AUDIO_WORKER_INTERVAL_MS
         value: "30000"
       - key: AUDIO_WORKER_START_DELAY_MS
