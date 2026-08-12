@@ -6,6 +6,7 @@ import {
   real,
   boolean,
   timestamp,
+  index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -89,18 +90,25 @@ export const documents = pgTable("documents", {
 
 export type Document = typeof documents.$inferSelect;
 
-export const interactions = pgTable("interactions", {
-  id: serial("id").primaryKey(),
-  type: text("type", { enum: ["call", "email", "visit", "note", "whatsapp", "sms"] }).default("note").notNull(),
-  leadId: integer("lead_id"),
-  propertyId: integer("property_id"),
-  operationId: integer("operation_id"),
-  content: text("content"),
-  direction: text("direction", { enum: ["inbound", "outbound", "entrante", "saliente"] }).default("inbound"),
-  duration: integer("duration"),
-  createdBy: integer("created_by"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const interactions = pgTable(
+  "interactions",
+  {
+    id: serial("id").primaryKey(),
+    type: text("type", { enum: ["call", "email", "visit", "note", "whatsapp", "sms"] }).default("note").notNull(),
+    leadId: integer("lead_id"),
+    propertyId: integer("property_id"),
+    operationId: integer("operation_id"),
+    content: text("content"),
+    direction: text("direction", { enum: ["inbound", "outbound", "entrante", "saliente"] }).default("inbound"),
+    duration: integer("duration"),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    leadIdIdx: index("interactions_lead_id_idx").on(table.leadId),
+    createdAtIdx: index("interactions_created_at_idx").on(table.createdAt),
+  })
+);
 
 export type Interaction = typeof interactions.$inferSelect;
 
@@ -128,31 +136,40 @@ export const leadProperties = pgTable("lead_properties", {
 
 export type LeadProperty = typeof leadProperties.$inferSelect;
 
-export const leads = pgTable("leads", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email"),
-  phone: text("phone"),
-  source: text("source", { enum: ["manual", "idealista", "fotocasa", "pisos", "habitaclia", "milanuncios", "yaencontre", "email", "whatsapp", "webhook", "phone", "referral", "web", "import"] }).default("manual"),
-  status: text("status", { enum: ["nuevo", "contactado", "calificado", "en_seguimiento", "en_segimiento", "descartado", "convertido"] }).default("nuevo"),
-  tier: text("tier", { enum: ["hot", "warm", "cold"] }).default("warm"),
-  persona: text("persona", { enum: ["inversor", "familia", "joven", "extranjero", "empresa", "particular"] }),
-  score: integer("score").default(0),
-  tags: text("tags"),
-  operationType: text("operation_type", { enum: ["compra", "alquiler", "venta"] }),
-  zone: text("zone"),
-  budgetMin: real("budget_min"),
-  budgetMax: real("budget_max"),
-  bedrooms: integer("bedrooms"),
-  bathrooms: integer("bathrooms"),
-  squareMeters: integer("square_meters"),
-  urgency: text("urgency", { enum: ["alta", "media", "baja"] }).default("media"),
-  notes: text("notes"),
-  assignedTo: integer("assigned_to"),
-  aiClassification: text("ai_classification"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const leads = pgTable(
+  "leads",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email"),
+    phone: text("phone"),
+    source: text("source", { enum: ["manual", "idealista", "fotocasa", "pisos", "habitaclia", "milanuncios", "yaencontre", "email", "whatsapp", "webhook", "phone", "referral", "web", "import"] }).default("manual"),
+    status: text("status", { enum: ["nuevo", "contactado", "calificado", "en_seguimiento", "en_segimiento", "descartado", "convertido"] }).default("nuevo"),
+    tier: text("tier", { enum: ["hot", "warm", "cold"] }).default("warm"),
+    persona: text("persona", { enum: ["inversor", "familia", "joven", "extranjero", "empresa", "particular"] }),
+    score: integer("score").default(0),
+    tags: text("tags"),
+    operationType: text("operation_type", { enum: ["compra", "alquiler", "venta"] }),
+    zone: text("zone"),
+    budgetMin: real("budget_min"),
+    budgetMax: real("budget_max"),
+    bedrooms: integer("bedrooms"),
+    bathrooms: integer("bathrooms"),
+    squareMeters: integer("square_meters"),
+    urgency: text("urgency", { enum: ["alta", "media", "baja"] }).default("media"),
+    notes: text("notes"),
+    assignedTo: integer("assigned_to"),
+    aiClassification: text("ai_classification"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    phoneIdx: index("leads_phone_idx").on(table.phone),
+    emailIdx: index("leads_email_idx").on(table.email),
+    statusIdx: index("leads_status_idx").on(table.status),
+    createdAtIdx: index("leads_created_at_idx").on(table.createdAt),
+  })
+);
 
 export type Lead = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
@@ -241,53 +258,61 @@ export const prequalifications = pgTable("prequalifications", {
 
 export type Prequalification = typeof prequalifications.$inferSelect;
 
-export const properties = pgTable("properties", {
-  id: serial("id").primaryKey(),
-  reference: text("reference").unique(),
-  title: text("title"),
-  description: text("description"),
-  type: text("type", { enum: ["piso", "casa", "atico", "duplex", "estudio", "local", "oficina", "nave", "terreno", "garaje", "trastero", "parking", "apartamento"] }).default("piso"),
-  status: text("status", { enum: ["disponible", "reservado", "vendido", "alquilado", "inactivo"] }).default("disponible"),
-  operation: text("operation", { enum: ["venta", "alquiler", "venta_alquiler", "ambos"] }).default("venta"),
-  price: real("price"),
-  priceSale: real("price_sale"),
-  zone: text("zone"),
-  address: text("address"),
-  city: text("city"),
-  postalCode: text("postal_code"),
-  bedrooms: integer("bedrooms"),
-  bathrooms: integer("bathrooms"),
-  squareMeters: integer("square_meters"),
-  squareMetersUseful: integer("square_meters_useful"),
-  floor: integer("floor"),
-  hasElevator: boolean("has_elevator").default(false),
-  hasTerrace: boolean("has_terrace").default(false),
-  hasParking: boolean("has_parking").default(false),
-  hasStorage: boolean("has_storage").default(false),
-  hasPool: boolean("has_pool").default(false),
-  hasGarden: boolean("has_garden").default(false),
-  hasAirConditioning: boolean("has_air_conditioning").default(false),
-  hasHeating: boolean("has_heating").default(false),
-  hasFurniture: boolean("has_furniture").default(false),
-  yearBuilt: integer("year_built"),
-  condition: text("condition"),
-  energyRating: text("energy_rating"),
-  lat: real("lat"),
-  lng: real("lng"),
-  images: text("images"),
-  videoUrl: text("video_url"),
-  virtualTourUrl: text("virtual_tour_url"),
-  ownerName: text("owner_name"),
-  ownerPhone: text("owner_phone"),
-  ownerEmail: text("owner_email"),
-  ibi: real("ibi"),
-  communityFees: real("community_fees"),
-  monthlyRent: real("monthly_rent"),
-  profitability: real("profitability"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const properties = pgTable(
+  "properties",
+  {
+    id: serial("id").primaryKey(),
+    reference: text("reference").unique(),
+    title: text("title"),
+    description: text("description"),
+    type: text("type", { enum: ["piso", "casa", "atico", "duplex", "estudio", "local", "oficina", "nave", "terreno", "garaje", "trastero", "parking", "apartamento"] }).default("piso"),
+    status: text("status", { enum: ["disponible", "reservado", "vendido", "alquilado", "inactivo"] }).default("disponible"),
+    operation: text("operation", { enum: ["venta", "alquiler", "venta_alquiler", "ambos"] }).default("venta"),
+    price: real("price"),
+    priceSale: real("price_sale"),
+    zone: text("zone"),
+    address: text("address"),
+    city: text("city"),
+    postalCode: text("postal_code"),
+    bedrooms: integer("bedrooms"),
+    bathrooms: integer("bathrooms"),
+    squareMeters: integer("square_meters"),
+    squareMetersUseful: integer("square_meters_useful"),
+    floor: integer("floor"),
+    hasElevator: boolean("has_elevator").default(false),
+    hasTerrace: boolean("has_terrace").default(false),
+    hasParking: boolean("has_parking").default(false),
+    hasStorage: boolean("has_storage").default(false),
+    hasPool: boolean("has_pool").default(false),
+    hasGarden: boolean("has_garden").default(false),
+    hasAirConditioning: boolean("has_air_conditioning").default(false),
+    hasHeating: boolean("has_heating").default(false),
+    hasFurniture: boolean("has_furniture").default(false),
+    yearBuilt: integer("year_built"),
+    condition: text("condition"),
+    energyRating: text("energy_rating"),
+    lat: real("lat"),
+    lng: real("lng"),
+    images: text("images"),
+    videoUrl: text("video_url"),
+    virtualTourUrl: text("virtual_tour_url"),
+    ownerName: text("owner_name"),
+    ownerPhone: text("owner_phone"),
+    ownerEmail: text("owner_email"),
+    ibi: real("ibi"),
+    communityFees: real("community_fees"),
+    monthlyRent: real("monthly_rent"),
+    profitability: real("profitability"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    ownerPhoneIdx: index("properties_owner_phone_idx").on(table.ownerPhone),
+    statusIdx: index("properties_status_idx").on(table.status),
+    createdAtIdx: index("properties_created_at_idx").on(table.createdAt),
+  })
+);
 
 export type Property = typeof properties.$inferSelect;
 
@@ -534,33 +559,41 @@ export type InsertImportRow = typeof importRows.$inferInsert;
 //  Tracks every Drive file through discovery → analysis → import
 // ═══════════════════════════════════════════════════════════
 
-export const driveImportQueue = pgTable("crm_driveImportQueue", {
-  id: serial("id").primaryKey(),
-  driveFileId: text("driveFileId").notNull().unique(),
-  name: text("name").notNull(),
-  mimeType: text("mimeType").notNull(),
-  size: text("size").default("0"),
-  folderId: text("folderId"),
-  folderName: text("folderName"),
-  webViewLink: text("webViewLink"),
-  status: text("status", {
-    enum: ["pending", "analyzing", "analyzed", "importing", "imported", "error", "skipped"],
+export const driveImportQueue = pgTable(
+  "crm_driveImportQueue",
+  {
+    id: serial("id").primaryKey(),
+    driveFileId: text("driveFileId").notNull().unique(),
+    name: text("name").notNull(),
+    mimeType: text("mimeType").notNull(),
+    size: text("size").default("0"),
+    folderId: text("folderId"),
+    folderName: text("folderName"),
+    webViewLink: text("webViewLink"),
+    status: text("status", {
+      enum: ["pending", "analyzing", "analyzed", "importing", "imported", "error", "skipped"],
+    })
+      .default("pending")
+      .notNull(),
+    detectedCategory: text("detectedCategory", {
+      enum: ["lead", "property", "interaction", "document", "audio", "image", "mixed", "unknown"],
+    }).default("unknown"),
+    extractedText: text("extractedText"),
+    aiAnalysisJson: text("aiAnalysisJson"),
+    entitiesCreatedJson: text("entitiesCreatedJson"),
+    retryCount: integer("retryCount").default(0),
+    lastError: text("lastError"),
+    driveModifiedAt: timestamp("driveModifiedAt", { withTimezone: true }),
+    processedAt: timestamp("processedAt", { withTimezone: true }),
+    createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    statusIdx: index("drive_import_queue_status_idx").on(table.status),
+    mimeTypeIdx: index("drive_import_queue_mime_type_idx").on(table.mimeType),
+    createdAtIdx: index("drive_import_queue_created_at_idx").on(table.createdAt),
   })
-    .default("pending")
-    .notNull(),
-  detectedCategory: text("detectedCategory", {
-    enum: ["lead", "property", "interaction", "document", "audio", "image", "mixed", "unknown"],
-  }).default("unknown"),
-  extractedText: text("extractedText"),
-  aiAnalysisJson: text("aiAnalysisJson"),
-  entitiesCreatedJson: text("entitiesCreatedJson"),
-  retryCount: integer("retryCount").default(0),
-  lastError: text("lastError"),
-  driveModifiedAt: timestamp("driveModifiedAt", { withTimezone: true }),
-  processedAt: timestamp("processedAt", { withTimezone: true }),
-  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
-});
+);
 
 export const driveDiscoveryState = pgTable("crm_driveDiscoveryState", {
   id: serial("id").primaryKey(),
