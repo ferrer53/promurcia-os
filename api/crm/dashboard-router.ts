@@ -23,6 +23,11 @@ const SOURCE_COLORS: Record<string, string> = {
   import: "#d4a853",
 };
 
+function toNum(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export const dashboardRouter = createTRPCRouter({
   getKPIs: readOnlyProcedure.query(async () => {
     const [leadCount] = await db.select({ count: sql<number>`count(*)` }).from(leads);
@@ -41,26 +46,26 @@ export const dashboardRouter = createTRPCRouter({
 
     // Conversion rate: converted leads / total leads
     const [convertedLeads] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(sql`${leads.status} = 'convertido'`);
-    const totalLeadsCount = leadCount?.count ?? 0;
-    const tasaConversion = totalLeadsCount > 0 ? Math.round(((convertedLeads?.count ?? 0) / totalLeadsCount) * 100) : 0;
+    const totalLeadsCount = toNum(leadCount?.count);
+    const tasaConversion = totalLeadsCount > 0 ? Math.round((toNum(convertedLeads?.count) / totalLeadsCount) * 100) : 0;
 
     return {
       totalLeads: totalLeadsCount,
       totalLeadsChange: 0,
-      leadsNuevosHoy: leadsToday?.count ?? 0,
+      leadsNuevosHoy: toNum(leadsToday?.count),
       leadsNuevosChange: 0,
-      propiedadesActivas: activePropertyCount?.count ?? 0,
+      propiedadesActivas: toNum(activePropertyCount?.count),
       propiedadesChange: 0,
-      operacionesActivas: activeOpCount?.count ?? 0,
+      operacionesActivas: toNum(activeOpCount?.count),
       operacionesChange: 0,
       tasaConversion,
       tasaConversionChange: 0,
-      totalProperties: propertyCount?.count ?? 0,
-      totalOperations: operationCount?.count ?? 0,
-      activeOperations: activeOpCount?.count ?? 0,
-      pendingTasks: taskCount?.count ?? 0,
-      unreadAlerts: alertCount?.count ?? 0,
-      totalRevenue: revenueResult[0]?.total ?? 0,
+      totalProperties: toNum(propertyCount?.count),
+      totalOperations: toNum(operationCount?.count),
+      activeOperations: toNum(activeOpCount?.count),
+      pendingTasks: toNum(taskCount?.count),
+      unreadAlerts: toNum(alertCount?.count),
+      totalRevenue: toNum(revenueResult[0]?.total),
     };
   }),
 
@@ -92,10 +97,10 @@ export const dashboardRouter = createTRPCRouter({
       nextMonth.setMonth(nextMonth.getMonth() + 1);
       const end = nextMonth.getTime() / 1000;
       const [count] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, new Date(start * 1000)), lt(leads.createdAt, new Date(end * 1000))));
-      months.push({ month: d.toLocaleDateString("es-ES", { month: "short" }), leads: count?.count ?? 0 });
+      months.push({ month: d.toLocaleDateString("es-ES", { month: "short" }), leads: toNum(count?.count) });
     }
 
-    const totalLeads = byTier.reduce((sum, t) => sum + t.count, 0);
+    const totalLeads = byTier.reduce((sum, t) => sum + toNum(t.count), 0);
     const tierDistribution: Record<string, { count: number; percentage: number }> = {
       hot: { count: 0, percentage: 0 },
       warm: { count: 0, percentage: 0 },
@@ -103,9 +108,10 @@ export const dashboardRouter = createTRPCRouter({
     };
     for (const t of byTier) {
       const key = t.tier || "cold";
+      const count = toNum(t.count);
       tierDistribution[key] = {
-        count: t.count,
-        percentage: totalLeads > 0 ? Math.round((t.count / totalLeads) * 100) : 0,
+        count,
+        percentage: totalLeads > 0 ? Math.round((count / totalLeads) * 100) : 0,
       };
     }
 
@@ -116,7 +122,7 @@ export const dashboardRouter = createTRPCRouter({
       monthlyData: months,
       sourceData: bySource.map((s) => ({
         source: s.source || "desconocido",
-        count: s.count,
+        count: toNum(s.count),
         color: SOURCE_COLORS[s.source || "manual"] || "#6b7280",
       })),
       tierDistribution,
@@ -208,10 +214,10 @@ export const dashboardRouter = createTRPCRouter({
     });
 
     return {
-      critical: critical?.count ?? 0,
-      warning: warning?.count ?? 0,
-      info: info?.count ?? 0,
-      total: (critical?.count ?? 0) + (warning?.count ?? 0) + (info?.count ?? 0),
+      critical: toNum(critical?.count),
+      warning: toNum(warning?.count),
+      info: toNum(info?.count),
+      total: toNum(critical?.count) + toNum(warning?.count) + toNum(info?.count),
       items: unreadAlerts.map((a) => ({
         id: a.id,
         priority: a.severity === "critical" ? "alta" : a.severity === "warning" ? "media" : "baja",
