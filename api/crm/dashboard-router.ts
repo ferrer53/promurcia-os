@@ -1,4 +1,4 @@
-import { sql, and, gte, lt } from "drizzle-orm";
+import { sql, and, gte, lt, eq } from "drizzle-orm";
 import { createTRPCRouter, readOnlyProcedure } from "../lib/trpc";
 import { db } from "../../db/connection";
 import { leads, properties, operations, tasks, interactions, alerts } from "../../db/schema";
@@ -31,8 +31,8 @@ export const dashboardRouter = createTRPCRouter({
     const [operationCount] = await db.select({ count: sql<number>`count(*)` }).from(operations);
     const [activeOpCount] = await db.select({ count: sql<number>`count(*)` }).from(operations).where(sql`${operations.status} = 'activa'`);
     const [taskCount] = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(sql`${tasks.status} IN ('pending', 'in_progress')`);
-    const [alertCount] = await db.select({ count: sql<number>`count(*)` }).from(alerts).where(sql`${alerts.read} = 0`);
-    const revenueResult = await db.select({ total: sql<number>`COALESCE(SUM(${operations.finalValue}), 0)` }).from(operations).where(sql`${operations.isSuccess} = 1`);
+    const [alertCount] = await db.select({ count: sql<number>`count(*)` }).from(alerts).where(eq(alerts.read, false));
+    const revenueResult = await db.select({ total: sql<number>`COALESCE(SUM(${operations.finalValue}), 0)` }).from(operations).where(eq(operations.isSuccess, true));
 
     // Leads created today
     const today = new Date();
@@ -195,14 +195,14 @@ export const dashboardRouter = createTRPCRouter({
 
   getAlerts: readOnlyProcedure.query(async () => {
     const [critical] = await db.select({ count: sql<number>`count(*)` }).from(alerts)
-      .where(sql`${alerts.severity} = 'critical' AND ${alerts.read} = 0`);
+      .where(and(eq(alerts.severity, 'critical'), eq(alerts.read, false)));
     const [warning] = await db.select({ count: sql<number>`count(*)` }).from(alerts)
-      .where(sql`${alerts.severity} = 'warning' AND ${alerts.read} = 0`);
+      .where(and(eq(alerts.severity, 'warning'), eq(alerts.read, false)));
     const [info] = await db.select({ count: sql<number>`count(*)` }).from(alerts)
-      .where(sql`${alerts.severity} = 'info' AND ${alerts.read} = 0`);
+      .where(and(eq(alerts.severity, 'info'), eq(alerts.read, false)));
 
     const unreadAlerts = await db.query.alerts.findMany({
-      where: sql`${alerts.read} = 0`,
+      where: eq(alerts.read, false),
       orderBy: (a, { desc }) => [desc(a.createdAt)],
       limit: 5,
     });
